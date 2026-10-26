@@ -1,0 +1,143 @@
+# ============================================================
+# Catálogo de tipos y áreas para clasificación por reglas.
+#
+# ESTE ARCHIVO LO AJUSTA EL NEGOCIO, no el programador.
+# Mientras más palabras reales del día a día tenga, menos
+# correos caerán en revisión humana.
+#
+# - 3 o más coincidencias -> confianza alta, se radica solo
+# - 1 o 2 coincidencias   -> confianza media, según umbral
+# - 0 coincidencias       -> va a revisión
+# ============================================================
+
+tipos:
+  peticion:
+    descripcion: Solicitud de información, documentos o servicios
+    palabras:
+      - solicitud
+      - solicito
+      - requiero
+      - necesito
+      - pido
+      - favor enviar
+      - favor remitir
+      - copia de
+      - certificado
+      - constancia
+      - informacion
+      - informacion sobre
+      - estado de mi
+      - tramite
+
+  queja:
+    descripcion: Manifestación de inconformidad por la atención recibida
+    palabras:
+      - queja
+      - inconformidad
+      - inconforme
+      - mala atencion
+      - maltrato
+      - no me atendieron
+      - me trataron mal
+      - pesimo servicio
+      - deficiente atencion
+      - demora en la atencion
+
+  reclamo:
+    descripcion: Exigencia sobre un servicio o cobro incorrecto
+    palabras:
+      - reclamo
+      - cobro
+      - cobro indebido
+      - doble cobro
+      - factura
+      - facturacion
+      - error en el cobro
+      - me cobraron
+      - devolucion
+      - reembolso
+      - no estoy de acuerdo con
+      - incumplimiento
+
+  sugerencia:
+    descripcion: Propuesta de mejora
+    palabras:
+      - sugerencia
+      - sugiero
+      - propongo
+      - recomendacion
+      - mejora
+      - idea
+      - seria bueno
+      - podrian
+
+  felicitacion:
+    descripcion: Reconocimiento al servicio
+    palabras:
+      - felicitacion
+      - felicito
+      - felicitar
+      - agradezco
+      - agradecimiento
+      - excelente atencion
+      - muy amables
+      - gracias por
+
+areas:
+  atencion_usuario:
+    nombre: Atencion al Usuario
+    palabras:
+      - atencion
+      - servicio al cliente
+      - asesor
+      - funcionario
+      - taquilla
+      - informacion general
+      - pqrsf
+
+  financiera:
+    nombre: Financiera y Cartera
+    palabras:
+      - factura
+      - cobro
+      - pago
+      - cartera
+      - devolucion
+      - reembolso
+      - cuenta de cobro
+      - valor
+
+  tecnica:
+    nombre: Tecnica y Operaciones
+    palabras:
+      - tecnico
+      - falla
+      - dano
+      - mantenimiento
+      - reparacion
+      - instalacion
+      - servicio tecnico
+      - producto defectuoso
+
+  juridica:
+    nombre: Juridica
+    palabras:
+      - abogado
+      - tutela
+      - demanda
+      - legal
+      - derecho de peticion
+      - accion popular
+      - notificacion judicial
+
+  talento_humano:
+    nombre: Talento Humano
+    palabras:
+      - empleado
+      - contratacion
+      - nomina
+      - personal
+      - trabajador
+
+# Área que recibe lo que no se puede clasificar con seguridad
+area_por_defecto: atencion_usuario

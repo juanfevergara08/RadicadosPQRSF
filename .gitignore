@@ -7,6 +7,8 @@
 .env
 .env.*
 !.env.example
+# Credenciales OAuth de Google: el token da acceso al buzón completo
+credentials/
 *.pem
 *.key
 *.p12
@@ -14,6 +16,10 @@
 secrets/
 config.local.*
 *.local
+
+# --- Estado local y reportes generados ---
+# state.db contiene remitentes y asuntos reales; los .xlsx también.
+var/
 
 # --- Datos reales de radicados (privacidad) ---
 *.sqlite

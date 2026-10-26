@@ -1,0 +1,254 @@
+openapi: 3.1.0
+info:
+  title: API de Radicación PQRSF
+  version: 0.1.0
+  description: |
+    Contrato que RadicadosPQRSF necesita del Sistema de Gestión Documental (SGD).
+
+    IMPORTANTE: este documento describe lo que **nosotros esperamos** del SGD.
+    Todavía no hay proveedor definido. Sirve para dos cosas:
+
+    1. Evaluar si el SGD que se elija puede cumplir el contrato (fase 0).
+    2. Implementar y probar contra un mock mientras el SGD real no existe.
+
+    Si el SGD elegido no puede cumplir un punto, se documenta la brecha y se
+    adapta el cliente en `src/radicados/radicar.py`, no se cambia el proceso.
+
+servers:
+  - url: http://localhost:8080
+    description: Mock local (desarrollo)
+  - url: https://sgd.example.gov.co/api/v1
+    description: SGD real (por definir)
+
+paths:
+  /areas:
+    get:
+      operationId: listAreas
+      summary: Catálogo de áreas a las que se puede asignar un radicado
+      responses:
+        '200':
+          description: Catálogo de áreas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Area'
+
+  /radicados:
+    post:
+      operationId: crearRadicado
+      summary: Crear un radicado a partir de un correo
+      description: |
+        Debe ser **idempotente**. Si llega un `idempotency_key` ya radicado,
+        el SGD responde 200 con el radicado existente en lugar de crear otro.
+        Esta es la garantía que evita radicados duplicados.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Message-ID del correo. Identifica unívocamente el origen.
+          schema:
+            type: string
+            example: <CABc123@mail.gmail.com>
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RadicadoRequest'
+      responses:
+        '201':
+          description: Radicado creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Radicado'
+        '200':
+          description: Ya existía para ese Idempotency-Key; se devuelve el existente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Radicado'
+        '422':
+          description: Datos inválidos (falta remitente, área inexistente, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: SGD no disponible; el correo queda en cola para reintento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /radicados/{numero}:
+    get:
+      operationId: consultarRadicado
+      summary: Consultar un radicado por su número
+      parameters:
+        - name: numero
+          in: path
+          required: true
+          schema:
+            type: string
+          example: PQRSF-2026-000123
+      responses:
+        '200':
+          description: Radicado encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Radicado'
+        '404':
+          description: No existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /radicados/{numero}/asignacion:
+    post:
+      operationId: asignarRadicado
+      summary: Asignar el radicado a un área o a un usuario
+      parameters:
+        - name: numero
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Asignacion'
+      responses:
+        '200':
+          description: Asignación registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Radicado'
+        '409':
+          description: El radicado ya fue asignado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Area:
+      type: object
+      required: [codigo, nombre]
+      properties:
+        codigo:
+          type: string
+          example: atencion_usuario
+        nombre:
+          type: string
+          example: Atención al Usuario
+        usuarios:
+          type: array
+          items:
+            type: string
+
+    RadicadoRequest:
+      type: object
+      required: [tipo, asunto, remitente, cuerpo]
+      properties:
+        tipo:
+          type: string
+          enum: [peticion, queja, reclamo, sugerencia, felicitacion]
+        asunto:
+          type: string
+          maxLength: 500
+        remitente:
+          type: object
+          required: [email]
+          properties:
+            email:
+              type: string
+              format: email
+            nombre:
+              type: string
+        cuerpo:
+          type: string
+          description: Texto plano del correo, sin HTML
+        recibido_en:
+          type: string
+          format: date-time
+        area_sugerida:
+          type: string
+          description: Código de área sugerido por el clasificador
+        confianza:
+          type: number
+          minimum: 0
+          maximum: 1
+        adjuntos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Adjunto'
+
+    Adjunto:
+      type: object
+      required: [nombre]
+      properties:
+        nombre:
+          type: string
+          example: cedula.pdf
+        tipo_mime:
+          type: string
+          example: application/pdf
+        tamano_bytes:
+          type: integer
+        # Bytes en base64. En una segunda iteración se reemplaza por
+        # una referencia al documento ya cargado en el SGD.
+        contenido_base64:
+          type: string
+
+    Radicado:
+      type: object
+      required: [numero, estado, creado_en]
+      properties:
+        numero:
+          type: string
+          example: PQRSF-2026-000123
+        estado:
+          type: string
+          enum: [radicado, asignado, cerrado]
+        tipo:
+          type: string
+        area_asignada:
+          type: string
+        usuario_asignado:
+          type: string
+        creado_en:
+          type: string
+          format: date-time
+        idempotency_key:
+          type: string
+
+    Asignacion:
+      type: object
+      properties:
+        area:
+          type: string
+          description: Código de área
+        usuario:
+          type: string
+          description: Identificación del usuario responsable
+
+    Error:
+      type: object
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          example: AREA_INEXISTENTE
+        mensaje:
+          type: string
+        detalle:
+          type: string

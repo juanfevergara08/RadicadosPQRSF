@@ -1,31 +1,90 @@
 # RadicadosPQRSF
 
-Sistema de radicación y seguimiento de **Peticiones, Quejas, Reclamos, Sugerencias y Felicitaciones (PQRSF)**.
+Radicación automática de **PQRSF** (peticiones, quejas, reclamos, sugerencias y
+felicitaciones) a partir de los correos que llegan a la entidad.
 
-> **Repositorio público.** Aquí solo va **código**. Nunca datos reales de radicantes,
-> documentos de identidad, evidencias, credenciales ni archivos `.env`.
+El sistema lee el buzón, clasifica cada correo, lo radica en el Sistema de
+Gestión Documental (SGD), lo asigna al área correspondiente y envía un Excel
+diario con lo que no se pudo radicar y por qué.
+
+> **Repositorio público.** Aquí solo va **código**. Nunca datos reales de
+> radicantes, credenciales ni archivos `.env`.
+
+📐 Diseño, fases y riesgos: [`docs/arquitectura.md`](docs/arquitectura.md)
 
 ---
 
-## Requisitos
+## Estado actual
 
-_(Completar según el stack del proyecto)_
+| Fase | Estado |
+|---|---|
+| 0. Contratos y mock del SGD | ✅ |
+| 1. Ingesta de Gmail | ⏳ pendiente de credenciales |
+| 2. Clasificación por reglas | ✅ (IA pendiente) |
+| 3. Radicación real | ⏳ pendiente de definir el SGD |
+| 4. Asignación | ⏳ |
+| 5. Reporte diario | ✅ generación (envío pendiente) |
+
+---
+
+## Cómo correr la demo
+
+No necesita Gmail, ni SGD, ni conexión a internet. Levanta un SGD falso en
+memoria y hace pasar correos de ejemplo por todo el recorrido.
 
 ```bash
-# Ejemplo
-git clone https://github.com/juanfevergara08/RadicadosPQRSF.git
-cd RadicadosPQRSF
+python -m venv .venv
+.venv\Scripts\activate            # Windows
+pip install -r requirements.txt
+
+python run_demo.py
 ```
+
+Salida esperada: 2 radicados, 2 a revisión, 1 fallido, un reintento que **no**
+duplica el radicado, y el Excel en `var/reportes/`.
+
+## Cómo correr las pruebas
+
+```bash
+python -m unittest discover -s tests -t .
+```
+
+Cubren la garantía más importante del sistema: **un correo nunca se radica dos
+veces**.
+
+---
+
+## Estructura
+
+```
+contracts/
+  radicacion.openapi.yaml   Contrato que se espera del SGD (aún sin proveedor)
+config/
+  areas.yaml                Tipos PQRSF y áreas con sus palabras clave
+mock/
+  sgd_mock.py               SGD falso, idempotente, para desarrollo
+src/radicados/
+  models.py                 Correo, Clasificación, Resultado (sin dependencias)
+  config.py                 Variables de entorno y catálogo
+  state.py                  SQLite: la barrera contra radicados duplicados
+  classify.py               Reglas + umbral + gancho para IA
+  radicar.py                Cliente del SGD según el contrato
+  report.py                 Excel de no radicados
+  proceso.py                Orquesta el recorrido completo
+tests/                      Pruebas de clasificación, estado e idempotencia
+run_demo.py                 Demo end-to-end
+```
+
+---
 
 ## Configuración local
 
-1. Copia el archivo de ejemplo de variables de entorno:
+```bash
+cp .env.example .env
+```
 
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Completa tus valores en `.env`. **Ese archivo nunca se sube** (ya está en `.gitignore`).
+Completa en `.env` las credenciales de Google y la URL del SGD. Ese archivo
+nunca se sube.
 
 ---
 
@@ -57,8 +116,8 @@ git push -u origin feature/nombre-de-tu-tarea
 
 ### 4. Abre un Pull Request
 
-En GitHub, abre un PR de tu rama hacia `main`. Otro compañero lo revisa y lo aprueba.
-**Nadie hace push directo a `main`.**
+En GitHub, abre un PR de tu rama hacia `main`. Otro compañero lo revisa y lo
+aprueba. **Nadie hace push directo a `main`.**
 
 ---
 
@@ -67,7 +126,6 @@ En GitHub, abre un PR de tu rama hacia `main`. Otro compañero lo revisa y lo ap
 | Rama | Uso |
 |---|---|
 | `main` | Versión estable, siempre funciona |
-| `develop` | Integración de trabajo en curso |
 | `feature/...` | Una funcionalidad nueva |
 | `fix/...` | Corrección de un error |
 
@@ -79,28 +137,12 @@ En GitHub, abre un PR de tu rama hacia `main`. Otro compañero lo revisa y lo ap
 
 Tipos: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`.
 
-Ejemplos:
-
-```
-feat(radicados): agregar campo de número de radicado
-fix(login): corregir validación de correo
-docs(readme): documentar instalación
-```
-
 ---
 
 ## Reglas del repositorio
 
-- ❌ No subir datos personales de radicantes (Ley 1581 de 2012 – protección de datos).
-- ❌ No subir `.env`, llaves, certificados ni contraseñas.
-- ❌ No subir bases de datos ni evidencias.
+- ❌ No subir datos personales de radicantes (Ley 1581 de 2012).
+- ❌ No subir `.env`, llaves, certificados ni `credentials/`.
+- ❌ No subir `var/` (base de estado y reportes contienen datos reales).
 - ✅ Usar `.env.example` para documentar qué variables se necesitan.
-- ✅ Un Pull Request por funcionalidad, con descripción clara.
-
----
-
-## Equipo
-
-| Nombre | Rol |
-|---|---|
-| _(pendiente)_ | _(pendiente)_ |
+- ✅ Toda funcionalidad nueva llega con su prueba.
