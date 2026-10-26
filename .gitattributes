@@ -1,0 +1,14 @@
+# Normaliza finales de línea entre Windows, Linux y macOS
+* text=auto eol=lf
+
+# Binarios (no convertir)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.xlsx binary
+*.docx binary
+*.pptx binary

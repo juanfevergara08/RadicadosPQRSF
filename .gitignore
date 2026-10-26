@@ -1,0 +1,104 @@
+# ============================================================
+# RadicadosPQRSF - .gitignore
+# Repositorio PÚBLICO: nada de datos reales ni credenciales
+# ============================================================
+
+# --- Secretos y configuración local (NUNCA subir) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+config.local.*
+*.local
+
+# --- Datos reales de radicados (privacidad) ---
+*.sqlite
+*.sqlite3
+*.db
+*.mdb
+*.bak
+*.dump
+/evidencias/
+/adjuntos/
+/uploads/
+/backups/
+/data/
+seed/real/
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Sistema operativo ---
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# --- Editores ---
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# --- Node.js ---
+node_modules/
+dist/
+build/
+.next/
+.nuxt/
+out/
+coverage/
+.cache/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# --- Java / Maven / Gradle ---
+target/
+build/
+*.class
+.gradle/
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# --- .NET ---
+bin/
+obj/
+*.user
+*.suo
+packages/
+
+# --- PHP ---
+vendor/
+composer.lock.bak
+
+# --- Go ---
+*.exe
+*.exe~
+*.test
+*.out
+
+# --- Bases de datos y temporales ---
+*.tmp
+*.temp
+*.cache
