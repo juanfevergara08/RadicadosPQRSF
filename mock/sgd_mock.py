@@ -26,11 +26,10 @@ AREAS = [
 ]
 
 TRAMITES = [
-    {"codigo": "PQRSF-PETICION", "nombre": "Petición"},
-    {"codigo": "PQRSF-QUEJA", "nombre": "Queja"},
-    {"codigo": "PQRSF-RECLAMO", "nombre": "Reclamo"},
-    {"codigo": "PQRSF-SUGERENCIA", "nombre": "Sugerencia"},
-    {"codigo": "PQRSF-FELICITACION", "nombre": "Felicitación"},
+    # DocxFlow radica por nombre de trámite, no por código.
+    # Solo está confirmado "Solicitud de Información"; el catálogo completo
+    # de la Cámara todavía no se conoce.
+    {"codigo": "Solicitud de Información", "nombre": "Solicitud de Información"},
 ]
 
 USUARIOS = [
