@@ -1,30 +1,52 @@
 openapi: 3.1.0
 info:
-  title: API de Radicación PQRSF
-  version: 0.1.0
+  title: API de Radicación PQRSF — DocxFlow
+  version: 0.2.0
   description: |
-    Contrato que RadicadosPQRSF necesita del Sistema de Gestión Documental (SGD).
+    Contrato que RadicadosPQRSF necesita del Sistema de Gestión Documental.
 
-    IMPORTANTE: este documento describe lo que **nosotros esperamos** del SGD.
-    Todavía no hay proveedor definido. Sirve para dos cosas:
+    ## Estado real de DocxFlow (verificado 2026-10-26)
 
-    1. Evaluar si el SGD que se elija puede cumplir el contrato (fase 0).
-    2. Implementar y probar contra un mock mientras el SGD real no existe.
+    `https://docxflow.camarapereira.org.co` es una aplicación **PHP/Symfony**
+    con sesión por cookie (`PHPSESSID`). Expone un prefijo `/api` que responde
+    JSON (`{"error":{"code":404,"message":"Not Found"}}`), pero **no publica
+    documentación**: `/api/docs`, `/api/docs.json`, `/swagger` y
+    `/openapi.json` devuelven 404.
 
-    Si el SGD elegido no puede cumplir un punto, se documenta la brecha y se
-    adapta el cliente en `src/radicados/radicar.py`, no se cambia el proceso.
+    Conclusión: **no se puede integrar por API sin el proveedor.** Hay que
+    pedirle a DocxFlow (o al área de sistemas de la Cámara) una de estas tres
+    cosas, en orden de preferencia:
+
+    1. Documentación del API interna + credenciales (token o usuario técnico).
+    2. Un endpoint de radicación para integraciones.
+    3. Confirmación de que no existe, y entonces evaluar automatización de
+       navegador (RPA) como plan B.
+
+    Este documento describe lo que el cliente espera: es la lista de preguntas
+    que hay que llevarle al proveedor.
+
+    ## Numeración
+
+    DocxFlow **genera** el radicado; nosotros solo lo recibimos y validamos.
+    Formato: `CCPE<AA>-<NNNN>` donde `AA` son los dos últimos dígitos del año.
+
+    - 2026 -> `CCPE26-0001`
+    - 2027 -> `CCPE27-0001`
+
+    El consecutivo reinicia cada año. No se debe construir el número en el
+    cliente: es responsabilidad del SGD.
 
 servers:
   - url: http://localhost:8080
-    description: Mock local (desarrollo)
-  - url: https://sgd.example.gov.co/api/v1
-    description: SGD real (por definir)
+    description: Mock local (desarrollo) — nunca crea radicados reales
+  - url: https://docxflow.camarapereira.org.co/api
+    description: DocxFlow real (pendiente de documentación del proveedor)
 
 paths:
   /areas:
     get:
       operationId: listAreas
-      summary: Catálogo de áreas a las que se puede asignar un radicado
+      summary: Catálogo de áreas
       responses:
         '200':
           description: Catálogo de áreas
@@ -35,6 +57,48 @@ paths:
                 items:
                   $ref: '#/components/schemas/Area'
 
+  /usuarios:
+    get:
+      operationId: listUsuarios
+      summary: Catálogo de usuarios que pueden recibir un radicado
+      description: |
+        Necesario para resolver el "destinatario": el usuario que dará
+        respuesta. Sin este catálogo la asignación no puede automatizarse.
+      parameters:
+        - name: area
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Usuarios, opcionalmente filtrados por área
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Usuario'
+
+  /tramites:
+    get:
+      operationId: listTramites
+      summary: Catálogo de tipos de trámite de DocxFlow
+      description: |
+        **Bloqueante.** Nuestra clasificación produce 5 tipos PQRSF
+        (petición, queja, reclamo, sugerencia, felicitación), pero DocxFlow
+        radica por "tipo de trámite", que es un catálogo distinto y propio de
+        la entidad. Sin este catálogo no se puede mapear uno a otro.
+      responses:
+        '200':
+          description: Tipos de trámite disponibles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TipoTramite'
+
   /radicados:
     post:
       operationId: crearRadicado
@@ -42,7 +106,7 @@ paths:
       description: |
         Debe ser **idempotente**. Si llega un `idempotency_key` ya radicado,
         el SGD responde 200 con el radicado existente en lugar de crear otro.
-        Esta es la garantía que evita radicados duplicados.
+        Es la única defensa que sobrevive si se pierde el estado local.
       parameters:
         - name: Idempotency-Key
           in: header
@@ -65,19 +129,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/Radicado'
         '200':
-          description: Ya existía para ese Idempotency-Key; se devuelve el existente
+          description: Ya existía para ese Idempotency-Key
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Radicado'
         '422':
-          description: Datos inválidos (falta remitente, área inexistente, etc.)
+          description: Datos inválidos
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '503':
-          description: SGD no disponible; el correo queda en cola para reintento
+          description: SGD no disponible
           content:
             application/json:
               schema:
@@ -93,7 +157,8 @@ paths:
           required: true
           schema:
             type: string
-          example: PQRSF-2026-000123
+            pattern: '^CCPE\d{2}-\d{4}$'
+          example: CCPE26-0001
       responses:
         '200':
           description: Radicado encontrado
@@ -103,36 +168,6 @@ paths:
                 $ref: '#/components/schemas/Radicado'
         '404':
           description: No existe
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /radicados/{numero}/asignacion:
-    post:
-      operationId: asignarRadicado
-      summary: Asignar el radicado a un área o a un usuario
-      parameters:
-        - name: numero
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Asignacion'
-      responses:
-        '200':
-          description: Asignación registrada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Radicado'
-        '409':
-          description: El radicado ya fue asignado
           content:
             application/json:
               schema:
@@ -150,23 +185,59 @@ components:
         nombre:
           type: string
           example: Atención al Usuario
-        usuarios:
-          type: array
-          items:
-            type: string
+
+    Usuario:
+      type: object
+      required: [email, nombre]
+      properties:
+        email:
+          type: string
+          format: email
+          example: jvergara@camarapereira.org.co
+        nombre:
+          type: string
+        area:
+          type: string
+          description: Código del área a la que pertenece
+
+    TipoTramite:
+      type: object
+      required: [codigo, nombre]
+      properties:
+        codigo:
+          type: string
+          example: PQRSF-QUEJA
+        nombre:
+          type: string
+          example: Queja
 
     RadicadoRequest:
       type: object
-      required: [tipo, asunto, remitente, cuerpo]
+      required:
+        - tipo_tramite
+        - asunto
+        - remitente
+        - destinatario
+        - cuerpo
+        - cantidad_documentos
       properties:
-        tipo:
+        tipo_tramite:
           type: string
+          description: Código del catálogo de trámites de DocxFlow
+        tipo_pqrsf:
+          type: string
+          description: Nuestra clasificación, para trazabilidad
           enum: [peticion, queja, reclamo, sugerencia, felicitacion]
         asunto:
           type: string
           maxLength: 500
         remitente:
+          $ref: '#/components/schemas/Persona'
+        destinatario:
           type: object
+          description: |
+            Usuario que dará respuesta. DocxFlow distribuye el radicado a este
+            usuario, no solo al área.
           required: [email]
           properties:
             email:
@@ -174,27 +245,41 @@ components:
               format: email
             nombre:
               type: string
+            area:
+              type: string
         cuerpo:
           type: string
           description: Texto plano del correo, sin HTML
         recibido_en:
           type: string
           format: date-time
-        area_sugerida:
-          type: string
-          description: Código de área sugerido por el clasificador
+        cantidad_documentos:
+          type: integer
+          minimum: 0
+          description: Debe coincidir con el número de adjuntos enviados
         confianza:
           type: number
           minimum: 0
           maximum: 1
+          description: Confianza del clasificador, para auditoría
         adjuntos:
           type: array
           items:
             $ref: '#/components/schemas/Adjunto'
 
+    Persona:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        nombre:
+          type: string
+
     Adjunto:
       type: object
-      required: [nombre]
+      required: [nombre, clasificacion]
       properties:
         nombre:
           type: string
@@ -204,8 +289,13 @@ components:
           example: application/pdf
         tamano_bytes:
           type: integer
-        # Bytes en base64. En una segunda iteración se reemplaza por
-        # una referencia al documento ya cargado en el SGD.
+        clasificacion:
+          type: string
+          description: |
+            Tipo de documento según el catálogo de DocxFlow
+            (cédula, cámara de comercio, poder, otro...).
+            DocxFlow exige clasificar cada anexo.
+          example: cedula
         contenido_base64:
           type: string
 
@@ -215,31 +305,21 @@ components:
       properties:
         numero:
           type: string
-          example: PQRSF-2026-000123
+          pattern: '^CCPE\d{2}-\d{4}$'
+          example: CCPE26-0001
         estado:
           type: string
-          enum: [radicado, asignado, cerrado]
-        tipo:
+          enum: [radicado, distribuido, cerrado]
+        tipo_tramite:
           type: string
-        area_asignada:
+        destinatario:
           type: string
-        usuario_asignado:
-          type: string
+          description: Email del usuario que dará respuesta
         creado_en:
           type: string
           format: date-time
         idempotency_key:
           type: string
-
-    Asignacion:
-      type: object
-      properties:
-        area:
-          type: string
-          description: Código de área
-        usuario:
-          type: string
-          description: Identificación del usuario responsable
 
     Error:
       type: object
@@ -247,7 +327,7 @@ components:
       properties:
         codigo:
           type: string
-          example: AREA_INEXISTENTE
+          example: TIPO_TRAMITE_INEXISTENTE
         mensaje:
           type: string
         detalle:

@@ -18,12 +18,19 @@ diario con lo que no se pudo radicar y por qué.
 
 | Fase | Estado |
 |---|---|
-| 0. Contratos y mock del SGD | ✅ |
+| 0. Contratos y mock del SGD | ✅ (falta documentación de DocxFlow) |
 | 1. Ingesta de Gmail | ⏳ pendiente de credenciales |
 | 2. Clasificación por reglas | ✅ (IA pendiente) |
-| 3. Radicación real | ⏳ pendiente de definir el SGD |
-| 4. Asignación | ⏳ |
+| 3. Radicación real | ⛔ bloqueada: DocxFlow no publica API |
+| 4. Asignación | ⛔ bloqueada por lo mismo |
 | 5. Reporte diario | ✅ generación (envío pendiente) |
+
+**Destino:** DocxFlow (`docxflow.camarapereira.org.co`), radicados `CCPE<AA>-<NNNN>`.
+**Buzones:** pruebas `jvergara@camarapereira.org.co`, producción
+`unidadcorrespondencia@camarapereira.org.co`.
+
+> ⚠️ `SGD_MODO_PRUEBA=true` fuerza el uso del mock y **nunca** escribe en
+> DocxFlow. No lo pongas en `false` hasta validar la fase 3.
 
 ---
 

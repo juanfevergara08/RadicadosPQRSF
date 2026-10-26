@@ -141,3 +141,29 @@ areas:
 
 # Área que recibe lo que no se puede clasificar con seguridad
 area_por_defecto: atencion_usuario
+
+# ============================================================
+# MAPEO HACIA DOCXFLOW  —  PENDIENTE DE DATOS REALES
+# ============================================================
+# DocxFlow radica por "tipo de trámite", que es un catálogo propio de la
+# Cámara y NO coincide con nuestros 5 tipos PQRSF. Hay que pedirle a DocxFlow
+# (o al área de sistemas) el catálogo real y reemplazar los códigos de abajo.
+#
+# Mientras estén estos valores provisionales, la fase 3 no es válida.
+
+tramites:
+  peticion: PQRSF-PETICION
+  queja: PQRSF-QUEJA
+  reclamo: PQRSF-RECLAMO
+  sugerencia: PQRSF-SUGERENCIA
+  felicitacion: PQRSF-FELICITACION
+
+# Usuario que da respuesta a cada área (el "destinatario" en DocxFlow).
+# PENDIENTE: reemplazar por los usuarios reales de la Cámara.
+destinatarios:
+  atencion_usuario: jvergara@camarapereira.org.co
+  financiera: jvergara@camarapereira.org.co
+  tecnica: jvergara@camarapereira.org.co
+  juridica: jvergara@camarapereira.org.co
+  talento_humano: jvergara@camarapereira.org.co
+

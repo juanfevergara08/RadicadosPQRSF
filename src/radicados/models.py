@@ -36,6 +36,9 @@ class Adjunto:
     nombre: str
     tipo_mime: str = "application/octet-stream"
     tamano_bytes: int = 0
+    # Tipo de documento según el catálogo de DocxFlow. DocxFlow exige
+    # clasificar cada anexo; "otro" es el comodín cuando no se reconoce.
+    clasificacion: str = "otro"
     # Contenido en bytes. None cuando solo se listó el adjunto sin descargarlo.
     contenido: Optional[bytes] = None
 

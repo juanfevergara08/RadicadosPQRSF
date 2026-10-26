@@ -24,7 +24,7 @@ sys.path.insert(0, str(RAIZ))
 from mock.sgd_mock import crear_servidor, reiniciar_estado  # noqa: E402
 from radicados.classify import ClasificadorHibrido, ClasificadorReglas  # noqa: E402
 from radicados.config import cargar_catalogo_areas  # noqa: E402
-from radicados.models import Correo, EstadoProceso  # noqa: E402
+from radicados.models import Adjunto, Correo, EstadoProceso  # noqa: E402
 from radicados.proceso import Procesador  # noqa: E402
 from radicados.radicar import ClienteSGD  # noqa: E402
 from radicados.report import generar_reporte  # noqa: E402
@@ -50,6 +50,15 @@ CORREOS_DEMO = [
             "servicio. Adjunto la factura. Solicito devolucion del dinero y "
             "correccion del cobro indebido."
         ),
+        adjuntos=[
+            Adjunto(
+                nombre="factura_marzo.pdf",
+                tipo_mime="application/pdf",
+                tamano_bytes=48213,
+                clasificacion="factura",
+                contenido=b"%PDF-1.4 demo",
+            )
+        ],
         recibido_en=datetime.now(),
     ),
     Correo(
@@ -104,7 +113,7 @@ def main() -> None:
     clasificador = ClasificadorHibrido(
         reglas=ClasificadorReglas(catalogo), umbral=UMBRAL, ia=None
     )
-    cliente = ClienteSGD(base_url=f"http://127.0.0.1:{puerto}")
+    cliente = ClienteSGD(base_url=f"http://127.0.0.1:{puerto}", catalogo=catalogo)
     procesador = Procesador(almacen, clasificador, cliente, umbral=UMBRAL)
 
     print("=" * 78)
@@ -121,7 +130,9 @@ def main() -> None:
               f"| conf={clasificacion.confianza:.2f}")
 
     print("\n[2] El SGD se cae a mitad de proceso\n")
-    cliente_caido = ClienteSGD(base_url="http://127.0.0.1:9", timeout=2)
+    cliente_caido = ClienteSGD(
+        base_url="http://127.0.0.1:9", timeout=2, catalogo=catalogo
+    )
     procesador_caido = Procesador(almacen, clasificador, cliente_caido, umbral=UMBRAL)
     correo_que_falla = Correo(
         message_id="<e5-sgd-caido@mail.gmail.com>",
@@ -144,8 +155,8 @@ def main() -> None:
     for radicado in cliente.sesion.get(
         f"http://127.0.0.1:{puerto}/_debug/radicados"
     ).json():
-        print(f"  {radicado['numero']}  {radicado['tipo']:12} "
-              f"area={radicado['area_sugerida']:18} {radicado['asunto'][:38]}")
+        print(f"  {radicado['numero']}  {radicado['tipo_tramite']:20} "
+              f"dest={radicado['destinatario']:34} {radicado['asunto'][:30]}")
 
     ruta_reporte = generar_reporte(almacen, RAIZ / "var" / "reportes")
     print("\n[5] Reporte diario de no radicados\n")

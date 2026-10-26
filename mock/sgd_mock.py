@@ -1,14 +1,12 @@
-"""Mock del Sistema de Gestión Documental.
+"""Mock del Sistema de Gestión Documental (DocxFlow).
 
-Sirve para construir y probar todo el flujo mientras el SGD real no está
-definido. Implementa el contrato `contracts/radicacion.openapi.yaml`.
+Sirve para construir y probar todo el flujo mientras DocxFlow no documenta su
+API. Implementa el contrato `contracts/radicacion.openapi.yaml`, incluyendo
+la numeración real: CCPE<AA>-<NNNN> con `AA` = dos últimos dígitos del año y
+consecutivo que reinicia cada año.
 
 Uso:
     python mock/sgd_mock.py --puerto 8080
-
-Importante: el mock SÍ implementa la idempotencia (devuelve 200 con el
-radicado existente si repites el Idempotency-Key). Si el SGD real no la
-implementa, ese es el punto que hay que negociar con el proveedor.
 """
 
 from __future__ import annotations
@@ -27,20 +25,32 @@ AREAS = [
     {"codigo": "talento_humano", "nombre": "Talento Humano"},
 ]
 
-TIPOS_VALIDOS = {"peticion", "queja", "reclamo", "sugerencia", "felicitacion"}
-CODIGOS_AREA = {area["codigo"] for area in AREAS}
+TRAMITES = [
+    {"codigo": "PQRSF-PETICION", "nombre": "Petición"},
+    {"codigo": "PQRSF-QUEJA", "nombre": "Queja"},
+    {"codigo": "PQRSF-RECLAMO", "nombre": "Reclamo"},
+    {"codigo": "PQRSF-SUGERENCIA", "nombre": "Sugerencia"},
+    {"codigo": "PQRSF-FELICITACION", "nombre": "Felicitación"},
+]
+
+USUARIOS = [
+    {"email": "jvergara@camarapereira.org.co", "nombre": "Julián Vergara", "area": "atencion_usuario"},
+    {"email": "cartera@camarapereira.org.co", "nombre": "Cartera", "area": "financiera"},
+]
+
+CODIGOS_TRAMITE = {t["codigo"] for t in TRAMITES}
 
 # Estado en memoria del mock
 _radicados: dict[str, dict] = {}  # numero -> radicado
 _por_idempotencia: dict[str, str] = {}  # Idempotency-Key -> numero
 _consecutivo = 0
+_anio_consecutivo: int | None = None
 _candado = threading.Lock()
 
 
 class HandlerSGD(BaseHTTPRequestHandler):
-    server_version = "SgdMock/0.1"
+    server_version = "SgdMock/0.2"
 
-    # Silenciar el log de cada request para no ensuciar la salida del demo
     def log_message(self, formato: str, *args: object) -> None:  # noqa: A003
         return
 
@@ -73,11 +83,15 @@ class HandlerSGD(BaseHTTPRequestHandler):
         if self.path == "/areas":
             self._responder(200, AREAS)
             return
-
+        if self.path == "/tramites":
+            self._responder(200, TRAMITES)
+            return
+        if self.path.startswith("/usuarios"):
+            self._responder(200, USUARIOS)
+            return
         if self.path == "/_debug/radicados":
             self._responder(200, list(_radicados.values()))
             return
-
         if self.path.startswith("/radicados/"):
             numero = self.path.split("/radicados/", 1)[1]
             radicado = _radicados.get(numero)
@@ -86,7 +100,6 @@ class HandlerSGD(BaseHTTPRequestHandler):
                 return
             self._responder(200, radicado)
             return
-
         self._error(404, "NO_ENCONTRADO", f"Ruta desconocida: {self.path}")
 
     # -------------------------------------------------------------------- POST
@@ -95,18 +108,12 @@ class HandlerSGD(BaseHTTPRequestHandler):
         if self.path == "/radicados":
             self._crear_radicado()
             return
-
-        if self.path.startswith("/radicados/") and self.path.endswith("/asignacion"):
-            numero = self.path[len("/radicados/") : -len("/asignacion")]
-            self._asignar(numero)
-            return
-
         self._error(404, "NO_ENCONTRADO", f"Ruta desconocida: {self.path}")
 
     # --------------------------------------------------------------- lógica
 
     def _crear_radicado(self) -> None:
-        global _consecutivo
+        global _consecutivo, _anio_consecutivo
 
         clave = self.headers.get("Idempotency-Key", "").strip()
         if not clave:
@@ -121,32 +128,53 @@ class HandlerSGD(BaseHTTPRequestHandler):
 
         cuerpo = self._leer_cuerpo()
 
-        tipo = cuerpo.get("tipo", "")
-        if tipo not in TIPOS_VALIDOS:
-            self._error(422, "TIPO_INVALIDO", f"Tipo no permitido: {tipo!r}")
+        tramite = cuerpo.get("tipo_tramite", "")
+        if tramite not in CODIGOS_TRAMITE:
+            self._error(422, "TIPO_TRAMITE_INEXISTENTE", f"Trámite no existe: {tramite!r}")
             return
 
         remitente = cuerpo.get("remitente") or {}
         if not remitente.get("email"):
-            self._error(422, "SIN_REMITENTE", "El correo debe traer remitente.email")
+            self._error(422, "SIN_REMITENTE", "Falta remitente.email")
             return
 
-        area = cuerpo.get("area_sugerida", "")
-        if area and area not in CODIGOS_AREA:
-            self._error(422, "AREA_INEXISTENTE", f"Área no existe: {area!r}")
+        destinatario = cuerpo.get("destinatario") or {}
+        if not destinatario.get("email"):
+            self._error(422, "SIN_DESTINATARIO", "Falta destinatario.email")
             return
+
+        adjuntos = cuerpo.get("adjuntos") or []
+        cantidad = cuerpo.get("cantidad_documentos")
+        if cantidad is None or int(cantidad) != len(adjuntos):
+            self._error(
+                422,
+                "CANTIDAD_DOCUMENTOS_INCONSISTENTE",
+                f"cantidad_documentos={cantidad} pero hay {len(adjuntos)} adjuntos",
+            )
+            return
+
+        for adjunto in adjuntos:
+            if not adjunto.get("clasificacion"):
+                self._error(
+                    422,
+                    "ADJUNTO_SIN_CLASIFICAR",
+                    f"El adjunto {adjunto.get('nombre')!r} no tiene clasificación",
+                )
+                return
 
         with _candado:
-            _consecutivo += 1
             anio = datetime.now(timezone.utc).year
-            numero = f"PQRSF-{anio}-{_consecutivo:06d}"
+            if _anio_consecutivo != anio:
+                _anio_consecutivo = anio
+                _consecutivo = 0
+            _consecutivo += 1
+
+            numero = f"CCPE{anio % 100:02d}-{_consecutivo:04d}"
             radicado = {
                 "numero": numero,
                 "estado": "radicado",
-                "tipo": tipo,
-                "area_sugerida": area,
-                "area_asignada": "",
-                "usuario_asignado": "",
+                "tipo_tramite": tramite,
+                "destinatario": destinatario.get("email", ""),
                 "creado_en": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "idempotency_key": clave,
                 "asunto": cuerpo.get("asunto", ""),
@@ -156,38 +184,18 @@ class HandlerSGD(BaseHTTPRequestHandler):
 
         self._responder(201, radicado)
 
-    def _asignar(self, numero: str) -> None:
-        radicado = _radicados.get(numero)
-        if radicado is None:
-            self._error(404, "NO_ENCONTRADO", f"No existe {numero}")
-            return
-        if radicado.get("area_asignada"):
-            self._error(409, "YA_ASIGNADO", f"{numero} ya fue asignado")
-            return
-
-        cuerpo = self._leer_cuerpo()
-        area = cuerpo.get("area", "")
-        if area and area not in CODIGOS_AREA:
-            self._error(422, "AREA_INEXISTENTE", f"Área no existe: {area!r}")
-            return
-
-        radicado["area_asignada"] = area
-        radicado["usuario_asignado"] = cuerpo.get("usuario", "")
-        radicado["estado"] = "asignado"
-        self._responder(200, radicado)
-
 
 def crear_servidor(puerto: int = 8080) -> ThreadingHTTPServer:
     return ThreadingHTTPServer(("127.0.0.1", puerto), HandlerSGD)
 
 
 def reiniciar_estado() -> None:
-    """Vacía el estado en memoria (útil para pruebas)."""
-    global _consecutivo
+    global _consecutivo, _anio_consecutivo
     with _candado:
         _radicados.clear()
         _por_idempotencia.clear()
         _consecutivo = 0
+        _anio_consecutivo = None
 
 
 if __name__ == "__main__":
@@ -197,7 +205,7 @@ if __name__ == "__main__":
 
     servidor = crear_servidor(argumentos.puerto)
     print(f"Mock del SGD escuchando en http://127.0.0.1:{argumentos.puerto}")
-    print("Endpoints: GET /areas | POST /radicados | GET /radicados/{numero}")
+    print("Endpoints: /areas /tramites /usuarios | POST /radicados")
     try:
         servidor.serve_forever()
     except KeyboardInterrupt:

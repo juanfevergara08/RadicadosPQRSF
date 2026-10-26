@@ -14,11 +14,48 @@ un Excel diario con el motivo.
 
 | Decisión | Elección | Por qué |
 |---|---|---|
-| Origen del correo | Gmail API (Google Workspace) | API oficial, etiquetas nativas para marcar procesados |
-| Destino | SGD aún no definido | Se define un contrato propio y se trabaja contra un mock |
+| Origen del correo | Gmail API (Google Workspace, dominio `camarapereira.org.co`) | API oficial, etiquetas nativas para marcar procesados |
+| Buzón de pruebas | `jvergara@camarapereira.org.co` | Permite leer correos reales sin tocar la unidad |
+| Buzón de producción | `unidadcorrespondencia@camarapereira.org.co` | Donde llegan las PQRSF de verdad |
+| Destino | **DocxFlow** (`docxflow.camarapereira.org.co`) | Es el SGD de la Cámara |
+| Numeración | `CCPE<AA>-<NNNN>`, reinicia cada año | La genera DocxFlow, no nosotros |
 | Clasificación | Reglas + IA con umbral | Las reglas son auditables; la IA cubre redacciones no estándar |
 | Stack | Python 3.14 | Correo, Excel y clasificación en un solo lenguaje |
 | Persistencia | SQLite | Sin infraestructura adicional; suficiente para este volumen |
+
+## 2.1 Estado real de DocxFlow (verificado 2026-10-26)
+
+Probé el sistema sin credenciales buscando documentación pública:
+
+| Ruta | Respuesta | Lectura |
+|---|---|---|
+| `/api` | `{"error":{"code":404,...}}` | Existe un prefijo de API |
+| `/api/docs`, `/api/docs.json` | 404 | Sin Swagger/OpenAPI |
+| `/swagger`, `/openapi.json` | 404 con página de error de **Symfony** | Aplicación PHP/Symfony |
+| `/login` | `PHPSESSID` + frame-buster | Autenticación por sesión y cookie |
+
+**Conclusión:** DocxFlow es una aplicación Symfony con un `/api` interno que
+consume su propio frontend, pero **no publica documentación ni endpoints**. No
+se puede integrar por API sin intervención del proveedor.
+
+### Qué hay que pedirle a DocxFlow (en orden de preferencia)
+
+1. **Documentación del API** y credenciales (token o usuario técnico).
+2. Un **endpoint de radicación** para integraciones.
+3. Si no existe: confirmarlo por escrito y evaluar automatización de navegador
+   (RPA) como plan B.
+
+### Los tres datos que faltan y bloquean la fase 3
+
+| Dato | Para qué |
+|---|---|
+| Catálogo de **tipos de trámite** | DocxFlow radica por trámite, no por tipo PQRSF. Son taxonomías distintas. |
+| Catálogo de **usuarios por área** | El radicado se distribuye a un usuario concreto (el que responde). |
+| Catálogo de **clasificación de anexos** | Cada adjunto debe clasificarse al radicar. |
+
+Mientras no existan, `config/areas.yaml` tiene valores provisionales marcados
+como `PENDIENTE`. El sistema los usa contra el mock, pero **no son válidos
+para producción**.
 
 ## 3. Las dos garantías que sostienen el sistema
 
@@ -95,17 +132,18 @@ generar basura.
 
 ## 5. Fases
 
-### Fase 0 — Contratos y credenciales (bloqueante)
+### Fase 0 — Contratos y credenciales
 
 - [x] Contrato del SGD en `contracts/radicacion.openapi.yaml`
-- [x] Mock del SGD en `mock/sgd_mock.py`
+- [x] Mock del SGD en `mock/sgd_mock.py` con numeración real `CCPE<AA>-<NNNN>`
 - [x] Modelo de estado con idempotencia
-- [ ] **Elegir el SGD** y verificar si cumple el contrato
+- [x] SGD identificado: DocxFlow
+- [ ] **Documentación del API de DocxFlow** ← bloqueante
 - [ ] Proyecto en Google Cloud + credenciales OAuth de Gmail
-- [ ] Catálogo real de áreas y usuarios
+- [ ] Catálogo real de trámites, usuarios y clasificación de anexos
 
-**Criterio de aceptación:** el SGD elegido puede crear un radicado de forma
-idempotente y asignarlo a un área.
+**Criterio de aceptación:** DocxFlow entrega documentación de API y credenciales,
+y confirma que soporta `Idempotency-Key`.
 
 ### Fase 1 — Ingesta de Gmail (sin radicar)
 
@@ -129,12 +167,16 @@ reales revisados por una persona.
 
 ### Fase 3 — Radicación real
 
-- [ ] Adaptar `radicar.py` al SGD elegido
+> **Bloqueada** hasta tener la documentación del API de DocxFlow.
+
+- [ ] Conseguir documentación y credenciales de DocxFlow
+- [ ] Adaptar `radicar.py` al API real (hoy implementa nuestro contrato)
 - [ ] Reintentos con espera progresiva
 - [ ] Prueba controlada con 1 correo real
+- [ ] Poner `SGD_MODO_PRUEBA=false` **solo** después de esa prueba
 
-**Criterio de aceptación:** cada correo radicado tiene número y es consultable
-en el SGD.
+**Criterio de aceptación:** cada correo radicado tiene número `CCPE<AA>-<NNNN>`
+y es consultable en DocxFlow.
 
 ### Fase 4 — Asignación
 
@@ -155,16 +197,19 @@ sus filas coinciden con el estado real.
 
 | Riesgo | Impacto | Mitigación |
 |---|---|---|
-| El SGD no implementa idempotencia | Radicados duplicados | Exigirlo en la contratación; si no, mantener la barrera local y no reintentar a ciegas |
-| El SGD no tiene API | Bloquea las fases 3-4 | Evaluar RPA o carga masiva; cambia el alcance |
-| Credenciales OAuth de Gmail | La app puede requerir verificación de Google si es externa | Usar tipo "Interno" en el consentimiento si el dominio es propio |
-| El buzón es compartido | Varias personas leen el mismo correo | La etiqueta marca el procesado; coordinar con el equipo |
+| **DocxFlow no documenta su API** | Bloquea las fases 3-4 | Pedirla al proveedor; si no existe, evaluar RPA con el área de sistemas |
+| DocxFlow no implementa idempotencia | Radicados duplicados | Exigirlo; si no, mantener la barrera local y no reintentar a ciegas |
+| Catálogos de trámite/usuario desconocidos | No se puede mapear ni distribuir | Obtenerlos de DocxFlow antes de la fase 3 |
+| Credenciales OAuth de Gmail | Puede requerir verificación de Google | Usar consentimiento tipo "Interno" en el dominio `camarapereira.org.co` |
+| Probar contra el DocxFlow real | Crea radicados oficiales de prueba | `SGD_MODO_PRUEBA=true` fuerza el mock y lo impide |
+| El buzón es compartido | Varias personas leen el mismo correo | La etiqueta marca el procesado; coordinar con la unidad |
 | Datos personales en un repo público | Sanción legal | `.gitignore` bloquea `var/`, `credentials/`, `.env` |
 
 ## 7. Pendiente de decidir
 
-1. **Qué SGD** y si expone API.
-2. **Dominio del buzón** y si hay un administrador de Google Workspace que
-   pueda autorizar la app.
-3. **Horario y destinatarios** del reporte diario.
-4. **Catálogo de áreas** real y quién es el responsable de cada una.
+1. **Documentación del API de DocxFlow.** Es lo único que bloquea la fase 3.
+2. **Catálogo de tipos de trámite** de DocxFlow.
+3. **Usuarios por área** (los destinatarios reales).
+4. **Clasificación de anexos** que exige DocxFlow.
+5. **Horario y destinatarios** del reporte diario.
+6. **Quién administra Google Workspace** para autorizar la app.
