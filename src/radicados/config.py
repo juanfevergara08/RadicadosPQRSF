@@ -25,8 +25,11 @@ class Configuracion:
     gmail_label_review: str = "PQRSF-Revision"
     gmail_label_failed: str = "PQRSF-Fallido"
 
-    sgd_base_url: str = "https://docxflow.camarapereira.org.co/api"
+    sgd_base_url: str = "https://docxflow.camarapereira.org.co"
     sgd_token: str = ""
+    # DocxFlow no tiene API: se entra con usuario y contraseña por navegador.
+    docxflow_user: str = ""
+    docxflow_password: str = ""
     sgd_timeout: int = 20
     # Mientras sea True, NUNCA se escribe en DocxFlow: se usa el mock local.
     # Es la protección contra crear radicados reales durante las pruebas.
@@ -75,9 +78,11 @@ class Configuracion:
             gmail_label_review=os.getenv("GMAIL_LABEL_REVIEW", "PQRSF-Revision"),
             gmail_label_failed=os.getenv("GMAIL_LABEL_FAILED", "PQRSF-Fallido"),
             sgd_base_url=os.getenv(
-                "SGD_BASE_URL", "https://docxflow.camarapereira.org.co/api"
+                "SGD_BASE_URL", "https://docxflow.camarapereira.org.co"
             ),
             sgd_token=os.getenv("SGD_TOKEN", ""),
+            docxflow_user=os.getenv("DOCXFLOW_USER", ""),
+            docxflow_password=os.getenv("DOCXFLOW_PASSWORD", ""),
             sgd_timeout=int(os.getenv("SGD_TIMEOUT", "20")),
             sgd_modo_prueba=os.getenv("SGD_MODO_PRUEBA", "true").lower()
             in ("1", "true", "si", "sí", "yes"),

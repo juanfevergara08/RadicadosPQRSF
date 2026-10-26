@@ -57,6 +57,57 @@ Mientras no existan, `config/areas.yaml` tiene valores provisionales marcados
 como `PENDIENTE`. El sistema los usa contra el mock, pero **no son válidos
 para producción**.
 
+### Valores confirmados para la prueba
+
+| Campo | Valor |
+|---|---|
+| Autenticación | Usuario y contraseña (sesión) |
+| Tipo de trámite | `Solicitud de Información` (único confirmado) |
+| Destinatario | `jvergara@camarapereira.org.co` |
+| Clasificación de anexos | `anexo` |
+
+## 2.2 Estrategia sin API: automatización de navegador (RPA)
+
+Al no existir API, la única vía es controlar el navegador. Esto tiene
+consecuencias que hay que asumir con los ojos abiertos:
+
+| Ventaja | Costo |
+|---|---|
+| Funciona hoy, sin depender del proveedor | Se rompe si DocxFlow cambia la pantalla |
+| Permite usar el rol real del usuario | Necesita credenciales de una persona |
+| Deja evidencia (capturas) | Es más lento que una API |
+
+### Progresión obligatoria en tres pasos
+
+Nunca se empieza enviando. Un radicado creado es un documento oficial.
+
+1. **Reconocimiento** — iniciar sesión y volcar la estructura del formulario
+   (sin escribir nada). Produce selectores reales.
+2. **Llenado sin envío** — completar todos los campos y detenerse antes del
+   botón final, con captura de pantalla. Cero efectos secundarios.
+3. **Envío controlado** — un solo correo real, verificar el número generado en
+   DocxFlow, y solo entonces habilitar el flujo completo.
+
+`SGD_MODO_PRUEBA=true` mantiene el sistema en el paso 2.
+
+### Qué se pierde sin API
+
+La **idempotencia** del lado del SGD desaparece. Queda una sola barrera: la
+base local. Por eso el orden de operaciones del RPA debe ser:
+
+```
+1. marcar intento en curso en SQLite
+2. llenar y enviar
+3. leer el número de radicado de la pantalla de confirmación
+4. guardar número + captura
+5. marcar la etiqueta en Gmail
+```
+
+Si el proceso muere entre 2 y 4, el correo queda en estado "en curso" y **no
+se reintenta automáticamente**: va al Excel para revisión humana. Reintentar a
+ciegas contra una interfaz sin idempotencia es cómo se duplican radicados.
+
+
 ## 3. Las dos garantías que sostienen el sistema
 
 ### Garantía 1 — No duplicar radicados
