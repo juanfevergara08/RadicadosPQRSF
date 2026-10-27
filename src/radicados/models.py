@@ -29,6 +29,7 @@ class EstadoProceso(str, Enum):
     RADICADO = "radicado"  # tiene número de radicado en el SGD
     REVISION = "revision"  # confianza baja: espera decisión humana
     FALLIDO = "fallido"  # error técnico: va al reporte diario
+    IGNORADO = "ignorado"  # no es PQRSF (notificación, rebote, boletín)
 
 
 @dataclass(frozen=True)

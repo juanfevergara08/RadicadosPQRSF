@@ -49,6 +49,10 @@ _candado = threading.Lock()
 
 class HandlerSGD(BaseHTTPRequestHandler):
     server_version = "SgdMock/0.2"
+    # HTTP/1.1 + Content-Length permite keep-alive real. Con HTTP/1.0 el
+    # servidor cierra la conexión tras cada respuesta y el cliente que
+    # reutiliza el socket falla de forma intermitente.
+    protocol_version = "HTTP/1.1"
 
     def log_message(self, formato: str, *args: object) -> None:  # noqa: A003
         return
@@ -184,8 +188,31 @@ class HandlerSGD(BaseHTTPRequestHandler):
         self._responder(201, radicado)
 
 
+class ServidorSGD(ThreadingHTTPServer):
+    """Servidor del mock.
+
+    `handle_error` silencia los cortes de conexión: cuando el cliente cierra
+    el socket (o se detiene el servidor) el handler lanza WinError 10053 y su
+    traza ensucia la salida de las pruebas sin ser un fallo real.
+    """
+
+    daemon_threads = True
+
+    def handle_error(self, request, client_address) -> None:
+        import sys
+
+        excepcion = sys.exc_info()[1]
+        if isinstance(
+            excepcion, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)
+        ):
+            return
+        super().handle_error(request, client_address)
+
+
 def crear_servidor(puerto: int = 8080) -> ThreadingHTTPServer:
-    return ThreadingHTTPServer(("127.0.0.1", puerto), HandlerSGD)
+    servidor = ServidorSGD(("127.0.0.1", puerto), HandlerSGD)
+    servidor.daemon_threads = True
+    return servidor
 
 
 def reiniciar_estado() -> None:

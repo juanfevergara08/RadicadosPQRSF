@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 
-from .classify import ClasificadorHibrido
+from .classify import ClasificadorHibrido, esta_excluido
 from .models import Correo, EstadoProceso, TipoPQRSF
 from .radicar import ClienteSGD
 from .state import AlmacenEstado
@@ -28,11 +28,13 @@ class Procesador:
         clasificador: ClasificadorHibrido,
         cliente: ClienteSGD,
         umbral: float = 0.75,
+        exclusiones: dict | None = None,
     ) -> None:
         self.almacen = almacen
         self.clasificador = clasificador
         self.cliente = cliente
         self.umbral = umbral
+        self.exclusiones = exclusiones or {}
 
     def procesar(self, correo: Correo) -> EstadoProceso:
         self.almacen.registrar(correo)
@@ -41,6 +43,12 @@ class Procesador:
         if not permitido:
             registro.info("Omitido %s: %s", correo.message_id, motivo)
             return EstadoProceso.RADICADO
+
+        motivo_exclusion = esta_excluido(correo, self.exclusiones)
+        if motivo_exclusion:
+            self.almacen.marcar_ignorado(correo.message_id, motivo_exclusion)
+            registro.info("Ignorado %s: %s", correo.message_id, motivo_exclusion)
+            return EstadoProceso.IGNORADO
 
         clasificacion = self.clasificador.clasificar(correo)
 

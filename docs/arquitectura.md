@@ -107,6 +107,25 @@ Si el proceso muere entre 2 y 4, el correo queda en estado "en curso" y **no
 se reintenta automáticamente**: va al Excel para revisión humana. Reintentar a
 ciegas contra una interfaz sin idempotencia es cómo se duplican radicados.
 
+### Tecnología elegida: Playwright (Python)
+
+| Opción | Veredicto |
+|---|---|
+| **Playwright** (Python) | ✅ Elegida. Espera automática de elementos, maneja descargas y adjuntos, API moderna, mismo lenguaje del proyecto |
+| Selenium | Funciona, pero necesita esperas manuales y es más frágil con páginas dinámicas |
+| Puppeteer | Solo JavaScript: obligaría a un segundo lenguaje |
+| AutoHotkey / clics por coordenadas | Se rompe con cualquier cambio de resolución. Descartado |
+
+Instalación:
+
+```bash
+pip install playwright
+playwright install chromium
+```
+
+Playwright abre un Chromium real (no un navegador simulado), así que la
+aplicación ve exactamente lo mismo que vería una persona.
+
 
 ## 3. Las dos garantías que sostienen el sistema
 
@@ -198,13 +217,22 @@ y confirma que soporta `Idempotency-Key`.
 
 ### Fase 1 — Ingesta de Gmail (sin radicar)
 
-- [ ] Autenticación OAuth con scopes `gmail.readonly` + `gmail.modify`
-- [ ] Listar correos con `GMAIL_QUERY`, descargar cuerpo y adjuntos
-- [ ] Normalizar HTML a texto plano
-- [ ] Aplicar etiqueta de prueba (sin radicar nada)
+- [x] Autenticación OAuth con scopes `gmail.readonly` + `gmail.modify`
+- [x] Listar correos con `GMAIL_QUERY`, descargar cuerpo y adjuntos
+- [x] Normalizar HTML a texto plano (`correo_parser.py`)
+- [x] Etiqueta `PQRSF-Leido` para marcar avance sin radicar
+- [x] CLI `scripts/ingestar.py` con salida JSON para calibrar
 
 **Criterio de aceptación:** correr el proceso sobre el buzón real produce un
-listado de correos normalizados y **ningún efecto** en el SGD.
+listado de correos normalizados y **ningún efecto** en el SGD. ✅
+
+Uso:
+
+```bash
+python scripts/ingestar.py --limite 10 --guardar
+```
+
+`ingestar.py` no importa `ClienteSGD`: es imposible que radique algo.
 
 ### Fase 2 — Clasificación
 

@@ -94,6 +94,7 @@ ETIQUETAS = {
     EstadoProceso.REVISION: "REVISION",
     EstadoProceso.FALLIDO: "FALLIDO",
     EstadoProceso.PENDIENTE: "PENDIENTE",
+    EstadoProceso.IGNORADO: "IGNORADO",
 }
 
 
@@ -114,7 +115,13 @@ def main() -> None:
         reglas=ClasificadorReglas(catalogo), umbral=UMBRAL, ia=None
     )
     cliente = ClienteSGD(base_url=f"http://127.0.0.1:{puerto}", catalogo=catalogo)
-    procesador = Procesador(almacen, clasificador, cliente, umbral=UMBRAL)
+    procesador = Procesador(
+        almacen,
+        clasificador,
+        cliente,
+        umbral=UMBRAL,
+        exclusiones=catalogo.get("excluir"),
+    )
 
     print("=" * 78)
     print(f"DEMO RadicadosPQRSF  |  mock SGD en http://127.0.0.1:{puerto}")

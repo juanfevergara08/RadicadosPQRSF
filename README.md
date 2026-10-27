@@ -18,19 +18,19 @@ diario con lo que no se pudo radicar y por qué.
 
 | Fase | Estado |
 |---|---|
-| 0. Contratos y mock del SGD | ✅ (falta documentación de DocxFlow) |
-| 1. Ingesta de Gmail | ⏳ pendiente de credenciales |
+| 0. Contratos y mock del SGD | ✅ |
+| 1. Ingesta de Gmail | ✅ |
 | 2. Clasificación por reglas | ✅ (IA pendiente) |
-| 3. Radicación real | ⛔ bloqueada: DocxFlow no publica API |
-| 4. Asignación | ⛔ bloqueada por lo mismo |
+| 3. Radicación real (RPA) | 🚧 en reconocimiento |
+| 4. Asignación | ⛔ depende de la fase 3 |
 | 5. Reporte diario | ✅ generación (envío pendiente) |
 
 **Destino:** DocxFlow (`docxflow.camarapereira.org.co`), radicados `CCPE<AA>-<NNNN>`.
 **Buzones:** pruebas `jvergara@camarapereira.org.co`, producción
 `unidadcorrespondencia@camarapereira.org.co`.
 
-> ⚠️ `SGD_MODO_PRUEBA=true` fuerza el uso del mock y **nunca** escribe en
-> DocxFlow. No lo pongas en `false` hasta validar la fase 3.
+> ⚠️ `SGD_MODO_PRUEBA=true` mantiene el sistema sin escribir en DocxFlow. No lo
+> pongas en `false` hasta validar la fase 3.
 
 ---
 
@@ -49,6 +49,27 @@ python run_demo.py
 
 Salida esperada: 2 radicados, 2 a revisión, 1 fallido, un reintento que **no**
 duplica el radicado, y el Excel en `var/reportes/`.
+
+## Leer correos reales (fase 1)
+
+```bash
+python scripts/verificar_gmail.py          # comprueba la configuración OAuth
+python scripts/ingestar.py --limite 10     # lee y clasifica, sin radicar
+```
+
+`--guardar` escribe el JSON en `var/correos/` para calibrar el clasificador.
+`--etiquetar` pone la etiqueta `PQRSF-Leido` en Gmail.
+
+## Reconocimiento de DocxFlow (fase 3)
+
+```bash
+pip install playwright
+playwright install chromium
+python scripts/reconocer_docxflow.py --confirmar
+```
+
+Inicia sesión, guarda captura + HTML + lista de campos en `var/rpa/`.
+**No envía ningún formulario de radicación.**
 
 ## Cómo correr las pruebas
 

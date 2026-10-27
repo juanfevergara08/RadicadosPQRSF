@@ -15,6 +15,7 @@ sys.path.insert(0, str(RAIZ / "src"))
 
 from radicados.classify import (  # noqa: E402
     ClasificadorReglas,
+    esta_excluido,
     normalizar,
 )
 from radicados.config import cargar_catalogo_areas  # noqa: E402
@@ -83,6 +84,51 @@ class PruebasClasificadorReglas(unittest.TestCase):
         )
         self.assertIs(resultado.tipo, TipoPQRSF.PETICION)
         self.assertLess(resultado.confianza, UMBRAL)
+
+
+class PruebasExclusion(unittest.TestCase):
+    """Una notificación automática no es PQRSF, aunque diga 'solicitud'."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.catalogo = cargar_catalogo_areas(RAIZ / "config" / "areas.yaml")
+        cls.exclusiones = cls.catalogo.get("excluir")
+
+    def test_notificacion_de_sistemas_se_excluye(self) -> None:
+        correo = Correo(
+            message_id="<n1@x>",
+            remitente_email="sistemas@camarapereira.org.co",
+            asunto="Notificacion - Soportes transaccion realizada",
+            cuerpo="Solicitud de soporte del recibo S002",
+        )
+        self.assertIn("remitente", esta_excluido(correo, self.exclusiones))
+
+    def test_asunto_excluido_se_detecta(self) -> None:
+        correo = Correo(
+            message_id="<n2@x>",
+            remitente_email="alguien@example.com",
+            asunto="Reporte SMS del dia",
+            cuerpo="Solicitud",
+        )
+        self.assertTrue(esta_excluido(correo, self.exclusiones))
+
+    def test_pqrsf_real_no_se_excluye(self) -> None:
+        correo = Correo(
+            message_id="<n3@x>",
+            remitente_email="cliente@example.com",
+            asunto="Reclamo por cobro indebido",
+            cuerpo="Presento reclamo por el cobro indebido de mi factura.",
+        )
+        self.assertEqual(esta_excluido(correo, self.exclusiones), "")
+
+    def test_sin_catalogo_no_excluye_nada(self) -> None:
+        correo = Correo(
+            message_id="<n4@x>",
+            remitente_email="sistemas@camarapereira.org.co",
+            asunto="Notificacion",
+            cuerpo="",
+        )
+        self.assertEqual(esta_excluido(correo, None), "")
 
 
 if __name__ == "__main__":

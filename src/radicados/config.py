@@ -24,6 +24,8 @@ class Configuracion:
     gmail_label_processed: str = "Radicado"
     gmail_label_review: str = "PQRSF-Revision"
     gmail_label_failed: str = "PQRSF-Fallido"
+    # Etiqueta de la fase 1: marca correos ya leídos y clasificados, sin radicar
+    gmail_label_leido: str = "PQRSF-Leido"
 
     sgd_base_url: str = "https://docxflow.camarapereira.org.co"
     sgd_token: str = ""
@@ -77,6 +79,7 @@ class Configuracion:
             gmail_label_processed=os.getenv("GMAIL_LABEL_PROCESSED", "Radicado"),
             gmail_label_review=os.getenv("GMAIL_LABEL_REVIEW", "PQRSF-Revision"),
             gmail_label_failed=os.getenv("GMAIL_LABEL_FAILED", "PQRSF-Fallido"),
+            gmail_label_leido=os.getenv("GMAIL_LABEL_LEIDO", "PQRSF-Leido"),
             sgd_base_url=os.getenv(
                 "SGD_BASE_URL", "https://docxflow.camarapereira.org.co"
             ),

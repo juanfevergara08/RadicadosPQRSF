@@ -163,6 +163,13 @@ class AlmacenEstado:
             motivo_revision=motivo,
         )
 
+    def marcar_ignorado(self, message_id: str, motivo: str) -> None:
+        self._actualizar(
+            message_id,
+            estado=EstadoProceso.IGNORADO.value,
+            motivo_revision=motivo,
+        )
+
     def marcar_fallido(self, message_id: str, codigo: str, detalle: str) -> None:
         with self._conexion() as conexion:
             conexion.execute(

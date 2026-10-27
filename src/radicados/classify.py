@@ -50,6 +50,30 @@ def _confianza_por_coincidencias(coincidencias: int) -> float:
     return 0.0
 
 
+def esta_excluido(correo: Correo, exclusiones: dict | None) -> str:
+    """Devuelve el motivo si el correo NO es una PQRSF, o '' si sí lo es.
+
+    Las notificaciones automáticas suelen contener palabras como "solicitud"
+    o "factura" y el clasificador las puntúa alto. Filtrarlas antes evita
+    radicados basura en el SGD.
+    """
+    if not exclusiones:
+        return ""
+
+    remitente = normalizar(correo.remitente_email)
+    asunto = normalizar(correo.asunto)
+
+    for patron in exclusiones.get("remitentes") or []:
+        if normalizar(patron) in remitente:
+            return f"remitente excluido: {patron}"
+
+    for patron in exclusiones.get("asuntos") or []:
+        if normalizar(patron) in asunto:
+            return f"asunto excluido: {patron}"
+
+    return ""
+
+
 class ClasificadorIA(Protocol):
     """Contrato del clasificador por IA. Se implementa en la fase 2."""
 

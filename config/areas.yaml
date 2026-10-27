@@ -174,3 +174,27 @@ destinatarios:
 # PENDIENTE: catálogo real de tipos documentales de DocxFlow.
 clasificacion_anexo_por_defecto: anexo
 
+# ============================================================
+# CORREOS QUE NO SON PQRSF
+# ============================================================
+# Notificaciones automáticas del sistema, rebotes y boletines NO deben
+# radicarse aunque contengan palabras como "solicitud". Sin este filtro, el
+# clasificador las marca como petición con alta confianza y genera radicados
+# basura en DocxFlow.
+#
+# Se comparan en minúsculas y sin tildes contra remitente y asunto.
+
+excluir:
+  remitentes:
+    - sistemas@camarapereira.org.co
+    - noreply@
+    - no-responder@
+    - notificaciones@
+    - mailer-daemon@
+    - postmaster@
+  asuntos:
+    - Notificacion - Soportes transaccion
+    - Reporte SMS
+    - Soportes transaccion realizada
+
+
