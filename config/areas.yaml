@@ -148,17 +148,23 @@ area_por_defecto: atencion_usuario
 # DocxFlow radica por "tipo de trámite" y usa un id numérico.
 # Estos ids salen del <select id="ventanilla_radicacion_tramite"> real.
 #
-# OJO: el usuario mencionó "Solicitud de Información", pero ese trámite
-# NO existe en el catálogo. El equivalente para peticiones es
-# 27 = PQRSF-Peticiones (o 25 = Derechos de peticion, distinto trámite).
-# Confirmar con la Cámara cuál corresponde antes de producción.
+# ESTADO DE PRUEBA: todos los tipos apuntan a
+#   32 = Solicitud de información
+# porque es el trámite confirmado para el radicado de prueba.
+#
+# MAPEO DEFINITIVO (cuando se pase a producción):
+#   peticion: "27"      # PQRSF-Peticiones
+#   queja: "28"         # PQRSF-Queja
+#   reclamo: "29"       # PQRSF-Reclamo
+#   sugerencia: "30"    # PQRSF-Sugerencias
+#   felicitacion: "31"  # PQRSF-Felicitaciones
 
 tramites:
-  peticion: "27"       # PQRSF-Peticiones
-  queja: "28"          # PQRSF-Queja
-  reclamo: "29"        # PQRSF-Reclamo
-  sugerencia: "30"     # PQRSF-Sugerencias
-  felicitacion: "31"   # PQRSF-Felicitaciones
+  peticion: "32"       # Solicitud de información (PRUEBA)
+  queja: "32"          # Solicitud de información (PRUEBA)
+  reclamo: "32"        # Solicitud de información (PRUEBA)
+  sugerencia: "32"     # Solicitud de información (PRUEBA)
+  felicitacion: "32"   # Solicitud de información (PRUEBA)
 
 # Otros trámites del catálogo, por si el negocio los necesita:
 #   1  Correspondencia            37  Visita domiciliaria

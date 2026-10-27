@@ -35,6 +35,7 @@ TRAMITES = [
     {"codigo": "29", "nombre": "PQRSF-Reclamo"},
     {"codigo": "30", "nombre": "PQRSF-Sugerencias"},
     {"codigo": "31", "nombre": "PQRSF-Felicitaciones"},
+    {"codigo": "32", "nombre": "Solicitud de información"},
     {"codigo": "37", "nombre": "Visita domiciliaria"},
     {"codigo": "38", "nombre": "FACTURAS JSP7"},
     {"codigo": "39", "nombre": "Facturas Gestion Humana"},
