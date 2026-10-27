@@ -47,15 +47,14 @@ se puede integrar por API sin intervención del proveedor.
 
 ### Los tres datos que faltan y bloquean la fase 3
 
-| Dato | Para qué |
+| Dato | Estado |
 |---|---|
-| Catálogo de **tipos de trámite** | DocxFlow radica por trámite, no por tipo PQRSF. Son taxonomías distintas. |
-| Catálogo de **usuarios por área** | El radicado se distribuye a un usuario concreto (el que responde). |
-| Catálogo de **clasificación de anexos** | Cada adjunto debe clasificarse al radicar. |
+| Catálogo de **tipos de trámite** | ✅ Obtenido: 17 trámites. PQRSF = `27` peticiones, `28` queja, `29` reclamo, `30` sugerencias, `31` felicitaciones |
+| Catálogo de **funcionarios** (destinatario) | ✅ Existe: autocompletado `POST /funcionario/autocomplete/1` |
+| Catálogo de **unidades de distribución** | ✅ Obtenido: 18 unidades |
+| Catálogo de **clasificación de anexos** | ⏳ pendiente |
 
-Mientras no existan, `config/areas.yaml` tiene valores provisionales marcados
-como `PENDIENTE`. El sistema los usa contra el mock, pero **no son válidos
-para producción**.
+Ya no hay valores provisionales en `config/areas.yaml` para trámites.
 
 ### Valores confirmados para la prueba
 

@@ -143,31 +143,62 @@ areas:
 area_por_defecto: atencion_usuario
 
 # ============================================================
-# MAPEO HACIA DOCXFLOW
+# MAPEO HACIA DOCXFLOW — catálogo REAL (verificado 2026-10-27)
 # ============================================================
-# DocxFlow radica por "tipo de trámite", que es un catálogo propio y NO
-# coincide con nuestros 5 tipos PQRSF.
+# DocxFlow radica por "tipo de trámite" y usa un id numérico.
+# Estos ids salen del <select id="ventanilla_radicacion_tramite"> real.
 #
-# ESTADO: solo está confirmado "Solicitud de Información". Se usa para todos
-# los tipos mientras se prueba. CADA LÍNEA DEBE REEMPLAZARSE por el trámite
-# real antes de producción.
+# OJO: el usuario mencionó "Solicitud de Información", pero ese trámite
+# NO existe en el catálogo. El equivalente para peticiones es
+# 27 = PQRSF-Peticiones (o 25 = Derechos de peticion, distinto trámite).
+# Confirmar con la Cámara cuál corresponde antes de producción.
 
 tramites:
-  peticion: Solicitud de Información
-  queja: Solicitud de Información
-  reclamo: Solicitud de Información
-  sugerencia: Solicitud de Información
-  felicitacion: Solicitud de Información
+  peticion: "27"       # PQRSF-Peticiones
+  queja: "28"          # PQRSF-Queja
+  reclamo: "29"        # PQRSF-Reclamo
+  sugerencia: "30"     # PQRSF-Sugerencias
+  felicitacion: "31"   # PQRSF-Felicitaciones
 
-# Usuario que da respuesta a cada área (el "destinatario" en DocxFlow).
-# ESTADO: durante las pruebas todo va a Julián Vergara.
-# PENDIENTE: reemplazar por los usuarios reales de la Cámara.
+# Otros trámites del catálogo, por si el negocio los necesita:
+#   1  Correspondencia            37  Visita domiciliaria
+#   25 Derechos de peticion       38  FACTURAS JSP7
+#   39 Facturas Gestion Humana    40  CONTRATOS JPS7
+#   41 CONCILIACION BANCARIA      42  DocumentosSinRadicado
+#   45 NUEVA AFILIACIÓN           46  CREDITOS TESORERIA
+#   47 CajaMenor Jsp7
+
+# Usuario que da respuesta a cada área.
+# En DocxFlow el destinatario es un FUNCIONARIO que se elige por
+# autocompletado (POST /funcionario/autocomplete/1). No es un correo.
+# PENDIENTE: completar con el funcionario real por área.
 destinatarios:
-  atencion_usuario: jvergara@camarapereira.org.co
-  financiera: jvergara@camarapereira.org.co
-  tecnica: jvergara@camarapereira.org.co
-  juridica: jvergara@camarapereira.org.co
-  talento_humano: jvergara@camarapereira.org.co
+  atencion_usuario: JUAN FELIPE VERGARA OSORIO
+  financiera: JUAN FELIPE VERGARA OSORIO
+  tecnica: JUAN FELIPE VERGARA OSORIO
+  juridica: JUAN FELIPE VERGARA OSORIO
+  talento_humano: JUAN FELIPE VERGARA OSORIO
+
+# Unidades de distribución reales (valor -> nombre).
+# PENDIENTE: decidir a qué unidad va cada área.
+unidades_distribucion:
+  "1": 01 - UD PRESIDENCIA EJECUTIVA
+  "2": 02 - UD DIRECCIÓN DE CONTROL INTERNO
+  "3": 03 - UD DIRECCIÓN DE GESTIÓN HUMANA
+  "4": 04 - UD SECRETARÍA GENERAL
+  "5": 05 - UD DIRECCIÓN DE CENTRO DE ARBITRAJE Y CONCILIACIÓN
+  "6": 06 - UD DIRECCIÓN JURIDICA DE REGISTROS
+  "7": 07 - UD GERENCIA DEL CENTRO DE CONVENCIONES EXPOFUTURO
+  "8": 08 - UD CENTRO DE ATENCIÓN EMPRESARIAL CAE
+  "9": 09 - UD JEFATURA DE CONTABILIDAD
+  "10": 10 - UD DIRECCIÓN DE DESARROLLO REGIONAL
+  "12": 11 - UD GERENCIA AGENCIA DE PROMOCIÓN DE PEREIRA Y RISARALDA
+  "13": 12 - UD DIRECCIÓN ADMINISTRATIVA
+  "17": 13 - UD COORDINACIÓN DE PROYECTOS E INNOVACIÓN
+  "18": 14 - UD DIRECCION DE REGISTROS PUBLICOS
+  "15": 15 - UD JEFATURA DE SISTEMAS
+  "19": 15 - UD JSP7
+  "20": 16 - UD AFILIADOS
 
 # Clasificación que se asigna a cada anexo al radicar.
 # ESTADO: confirmado que por ahora todo se clasifica como "anexo".

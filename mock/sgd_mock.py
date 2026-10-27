@@ -26,10 +26,24 @@ AREAS = [
 ]
 
 TRAMITES = [
-    # DocxFlow radica por nombre de trámite, no por código.
-    # Solo está confirmado "Solicitud de Información"; el catálogo completo
-    # de la Cámara todavía no se conoce.
-    {"codigo": "Solicitud de Información", "nombre": "Solicitud de Información"},
+    # Catálogo REAL de DocxFlow (verificado 2026-10-27 en el formulario).
+    # `codigo` es el value numérico del <select> de trámite.
+    {"codigo": "1", "nombre": "Correspondencia"},
+    {"codigo": "25", "nombre": "Derechos de peticion"},
+    {"codigo": "27", "nombre": "PQRSF-Peticiones"},
+    {"codigo": "28", "nombre": "PQRSF-Queja"},
+    {"codigo": "29", "nombre": "PQRSF-Reclamo"},
+    {"codigo": "30", "nombre": "PQRSF-Sugerencias"},
+    {"codigo": "31", "nombre": "PQRSF-Felicitaciones"},
+    {"codigo": "37", "nombre": "Visita domiciliaria"},
+    {"codigo": "38", "nombre": "FACTURAS JSP7"},
+    {"codigo": "39", "nombre": "Facturas Gestion Humana"},
+    {"codigo": "40", "nombre": "CONTRATOS JPS7"},
+    {"codigo": "41", "nombre": "CONCILIACION BANCARIA"},
+    {"codigo": "42", "nombre": "DocumentosSinRadicado"},
+    {"codigo": "45", "nombre": "NUEVA AFILIACIÓN"},
+    {"codigo": "46", "nombre": "CREDITOS TESORERIA"},
+    {"codigo": "47", "nombre": "CajaMenor Jsp7"},
 ]
 
 USUARIOS = [

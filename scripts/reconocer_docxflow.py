@@ -1,20 +1,17 @@
-"""Paso 1 del RPA: reconocer la pantalla de DocxFlow (NO radica nada).
-
-    pip install playwright
-    playwright install chromium
+"""Paso 1 del RPA: reconocimiento de DocxFlow (versión 4).
 
     python scripts/reconocer_docxflow.py --confirmar
 
-Qué hace:
-  1. Abre un navegador visible.
-  2. Inicia sesión con DOCXFLOW_USER / DOCXFLOW_PASSWORD del .env.
-  3. Guarda captura de pantalla + HTML de la página.
-  4. Lista todos los campos del formulario con sus etiquetas.
+Usa la sesión robusta de `docxflow_rpa` y explora **dentro del frame** de la
+aplicación, que es donde está la bandeja de radicación de entrada.
 
-No envía ningún formulario de radicación. Solo inicia sesión y observa.
+Recorre:
+  1. Login y rol de ventanilla única de entrada
+  2. Bandeja de radicación de entrada: inventario de botones y enlaces
+  3. Intento de abrir el formulario de radicación
+  4. Volcado de campos de cada pantalla (todos los frames)
 
-Sirve para obtener los selectores reales antes de escribir la automatización.
-Si la página cambia, se vuelve a correr y se actualizan los datos.
+No envía ningún formulario de radicación.
 """
 
 from __future__ import annotations
@@ -29,140 +26,188 @@ RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))
 
 from radicados.config import Configuracion  # noqa: E402
+from radicados.docxflow_rpa import (  # noqa: E402
+    ErrorLogin,
+    abrir_contexto,
+    frame_contenido,
+    guardar_sesion,
+    iniciar_sesion,
+)
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 SALIDA = RAIZ / "var" / "rpa"
 
+JS_CAMPOS = """() => {
+    const etiquetaDe = (el) => {
+        if (el.id) {
+            const l = document.querySelector(`label[for="${el.id}"]`);
+            if (l) return l.innerText.trim();
+        }
+        const td = el.closest('td');
+        if (td && td.previousElementSibling) {
+            const t = td.previousElementSibling.innerText.trim();
+            if (t && t.length < 70) return t.replace(/:$/, '');
+        }
+        if (el.getAttribute('aria-label')) return el.getAttribute('aria-label');
+        if (el.title) return el.title;
+        if (el.name) return el.name;
+        return '';
+    };
+    return [...document.querySelectorAll('input, select, textarea, button')]
+        .filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
+        .map(el => ({
+            tag: el.tagName.toLowerCase(),
+            type: el.getAttribute('type') || '',
+            id: el.id || '',
+            name: el.getAttribute('name') || '',
+            etiqueta: etiquetaDe(el),
+            opciones: el.tagName === 'SELECT'
+                ? [...el.options].map(o => o.text.trim()).slice(0, 30) : []
+        }));
+}"""
 
-def volcar_campos(pagina) -> list[dict]:
-    """Lista los campos visibles del formulario con su etiqueta."""
-    return pagina.evaluate(
-        """() => {
-            const etiquetaDe = (el) => {
-                if (el.id) {
-                    const l = document.querySelector(`label[for="${el.id}"]`);
-                    if (l) return l.innerText.trim();
-                }
-                const padre = el.closest('label');
-                if (padre) return padre.innerText.trim();
-                if (el.getAttribute('aria-label')) return el.getAttribute('aria-label');
-                if (el.placeholder) return el.placeholder;
-                if (el.name) return el.name;
-                return '';
-            };
-            const visibles = [...document.querySelectorAll('input, select, textarea, button, a[href]')]
-                .filter(el => {
-                    const r = el.getBoundingClientRect();
-                    return r.width > 0 && r.height > 0;
-                });
-            return visibles.map(el => ({
-                tag: el.tagName.toLowerCase(),
-                type: el.getAttribute('type') || '',
-                id: el.id || '',
-                name: el.getAttribute('name') || '',
-                placeholder: el.placeholder || '',
-                etiqueta: etiquetaDe(el),
-                texto: (el.innerText || el.value || '').trim().slice(0, 60),
-                href: el.getAttribute('href') || ''
-            }));
-        }"""
+JS_ACCIONES = """() => [...document.querySelectorAll(
+        'button, a, input[type=button], input[type=submit], .boton, [onclick]')]
+    .filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
+    .map(el => ({
+        tag: el.tagName.toLowerCase(),
+        texto: (el.innerText || el.value || '').trim().slice(0, 50),
+        id: el.id || '',
+        onclick: (el.getAttribute('onclick') || '').slice(0, 100),
+        href: (el.getAttribute('href') || '').slice(0, 100)
+    }))
+    .filter(a => a.texto || a.onclick || a.href)"""
+
+
+def instantanea(pagina, marca: str, paso: str, resumen: dict) -> None:
+    prefijo = SALIDA / f"{marca}_{paso}"
+    try:
+        pagina.screenshot(path=f"{prefijo}.png", full_page=True)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        Path(f"{prefijo}.html").write_text(pagina.content(), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
+
+    frames_info = []
+    for indice, frame in enumerate(pagina.frames):
+        try:
+            campos = frame.evaluate(JS_CAMPOS)
+        except Exception:  # noqa: BLE001
+            campos = []
+        frames_info.append({"indice": indice, "url": frame.url, "campos": campos})
+        # El formulario vive dentro del frame: hay que guardar su propio HTML
+        if frame.url and "/login" not in frame.url and frame.url != "about:blank":
+            try:
+                Path(f"{prefijo}_f{indice}.html").write_text(
+                    frame.content(), encoding="utf-8"
+                )
+            except Exception:  # noqa: BLE001
+                pass
+
+    resumen[paso] = {"url": pagina.url, "frames": frames_info}
+    Path(f"{prefijo}_campos.json").write_text(
+        json.dumps(frames_info, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+
+    print(f"\n  >> {paso}  ({pagina.url[:70]})")
+    for frame in frames_info:
+        if not frame["campos"]:
+            continue
+        print(f"     frame {frame['indice']}: {frame['url'][:78]}")
+        for campo in frame["campos"][:22]:
+            etiqueta = campo["etiqueta"] or campo["name"] or campo["id"]
+            extra = f" {campo['opciones'][:4]}" if campo["opciones"] else ""
+            print(f"        <{campo['tag']}> {campo['id']!r:22} {etiqueta[:38]!r}{extra}")
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Reconocimiento de DocxFlow")
-    parser.add_argument(
-        "--confirmar",
-        action="store_true",
-        help="necesario para ejecutar: confirma que autorizas iniciar sesión",
-    )
-    parser.add_argument(
-        "--headless",
-        action="store_true",
-        help="sin ventana visible (por defecto se muestra para que veas qué pasa)",
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--confirmar", action="store_true")
+    parser.add_argument("--headless", action="store_true")
     argumentos = parser.parse_args()
 
     if not argumentos.confirmar:
-        print("Este script inicia sesión en DocxFlow con tus credenciales.")
-        print("No radica nada, pero deja registro de acceso.")
-        print("\nSi estás de acuerdo, ejecuta:")
-        print("    python scripts/reconocer_docxflow.py --confirmar")
+        print("Inicia sesión en DocxFlow. No radica nada.")
+        print("Ejecuta: python scripts/reconocer_docxflow.py --confirmar")
         return 2
 
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        print("[ERROR] Falta Playwright. Instala con:")
-        print("    pip install playwright")
-        print("    playwright install chromium")
-        return 1
+    from playwright.sync_api import sync_playwright
 
     config = Configuracion.cargar()
-    if not config.docxflow_user or not config.docxflow_password:
-        print("[ERROR] Faltan DOCXFLOW_USER y DOCXFLOW_PASSWORD en el archivo .env")
-        return 1
-
     SALIDA.mkdir(parents=True, exist_ok=True)
     marca = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ruta_sesion = SALIDA / "sesion.json"
+    resumen: dict = {}
 
     with sync_playwright() as p:
         navegador = p.chromium.launch(headless=argumentos.headless)
-        contexto = navegador.new_context(viewport={"width": 1400, "height": 900})
+        contexto = abrir_contexto(navegador, ruta_sesion)
         pagina = contexto.new_page()
 
-        print(f"Abriendo {config.sgd_base_url} ...")
-        pagina.goto(config.sgd_base_url, wait_until="networkidle", timeout=60000)
+        print("1. Autenticando")
+        try:
+            iniciar_sesion(pagina, config)
+        except ErrorLogin as error:
+            print(f"[FALLO] {error}")
+            navegador.close()
+            return 1
+        guardar_sesion(contexto, ruta_sesion)
+        print(f"   ok -> {pagina.url}")
 
-        print(f"URL: {pagina.url}")
-        print(f"Título: {pagina.title()}")
+        print("\n2. Asegurando rol de ventanilla única de entrada")
+        try:
+            if pagina.locator("#opcRol").count():
+                pagina.locator("#opcRol").select_option(
+                    label="Rol de ventanilla única de entrada"
+                )
+                pagina.locator("#frmRol").evaluate("(f) => f.submit()")
+                pagina.wait_for_load_state("networkidle", timeout=40000)
+                pagina.wait_for_timeout(2500)
+                print("   rol aplicado")
+        except Exception as error:  # noqa: BLE001
+            print(f"   [aviso] {str(error)[:100]}")
 
-        # Intento heurístico de inicio de sesión
-        usuario = pagina.locator(
-            'input[type="email"], input[name*="user" i], input[id*="user" i], '
-            'input[name*="usuario" i], input[id*="usuario" i], input[type="text"]'
-        ).first
-        clave = pagina.locator('input[type="password"]').first
+        pagina.wait_for_timeout(2000)
+        instantanea(pagina, marca, "01_bandeja", resumen)
 
-        if usuario.count() and clave.count():
-            print("Formulario de login detectado. Iniciando sesión...")
-            usuario.fill(config.docxflow_user)
-            clave.fill(config.docxflow_password)
-            clave.press("Enter")
-            pagina.wait_for_load_state("networkidle", timeout=60000)
-            print(f"Sesión iniciada. URL: {pagina.url}")
-        else:
-            print("[AVISO] No se detectó formulario de login en esta página.")
-            print("        Revisa la captura para ver qué se cargó.")
+        contenido = frame_contenido(pagina)
+        print(f"\n3. Inventario de acciones en el frame de contenido")
+        try:
+            acciones = contenido.evaluate(JS_ACCIONES)
+            vistas = set()
+            for accion in acciones:
+                clave = accion["texto"] or accion["onclick"] or accion["href"]
+                if not clave or clave in vistas:
+                    continue
+                vistas.add(clave)
+                print(f"   [{accion['tag']}] {accion['texto'][:40]!r} "
+                      f"id={accion['id'][:18]!r} onclick={accion['onclick'][:40]!r}")
+        except Exception as error:  # noqa: BLE001
+            print(f"   [aviso] {str(error)[:100]}")
 
-        pagina.wait_for_timeout(2500)
-
-        captura = SALIDA / f"docxflow_{marca}.png"
-        pagina.screenshot(path=str(captura), full_page=True)
-
-        html = SALIDA / f"docxflow_{marca}.html"
-        html.write_text(pagina.content(), encoding="utf-8")
-
-        campos = volcar_campos(pagina)
-        campos_json = SALIDA / f"campos_{marca}.json"
-        campos_json.write_text(
-            json.dumps(campos, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-
-        print(f"\nCaptura:  {captura}")
-        print(f"HTML:     {html}")
-        print(f"Campos:   {campos_json}")
-        print(f"\nSe encontraron {len(campos)} elementos interactivos:\n")
-        for campo in campos[:40]:
-            etiqueta = campo["etiqueta"] or campo["texto"] or campo["name"] or campo["id"]
-            print(f"  <{campo['tag']}{' type=' + campo['type'] if campo['type'] else ''}> "
-                  f"id={campo['id']!r:22} etiqueta={etiqueta[:44]!r}")
+        print("\n4. Buscando el formulario de radicación")
+        for etiqueta in ("Radicar", "Nuevo", "Registrar", "Adicionar", "Crear"):
+            try:
+                localizador = contenido.get_by_text(etiqueta, exact=False).first
+                if localizador.count() and localizador.is_visible():
+                    print(f"   clic en {etiqueta!r}")
+                    localizador.click(timeout=8000)
+                    pagina.wait_for_timeout(3500)
+                    instantanea(pagina, marca, "02_formulario", resumen)
+                    break
+            except Exception as error:  # noqa: BLE001
+                print(f"   [fallo] {etiqueta!r}: {str(error).splitlines()[0][:80]}")
 
         navegador.close()
 
-    print("\nReconocimiento terminado. No se envió ningún formulario.")
+    archivo = SALIDA / f"resumen_{marca}.json"
+    archivo.write_text(json.dumps(resumen, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\nResumen: {archivo}")
+    print("No se envió ningún formulario de radicación.")
     return 0
 
 

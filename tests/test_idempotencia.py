@@ -119,6 +119,17 @@ class PruebasIntegracionDocxFlow(unittest.TestCase):
         self.assertEqual(primero.radicado.numero, segundo.radicado.numero)
         self.assertEqual(len(self._radicados_en_mock()), 1)
 
+    def test_todos_los_tipos_pqrsf_tienen_tramite_real(self) -> None:
+        """El mapeo del catálogo debe apuntar a trámites que DocxFlow acepta."""
+        from mock.sgd_mock import TRAMITES
+
+        codigos = {tramite["codigo"] for tramite in TRAMITES}
+        mapa = self.catalogo["tramites"]
+        for tipo in ("peticion", "queja", "reclamo", "sugerencia", "felicitacion"):
+            with self.subTest(tipo=tipo):
+                self.assertIn(tipo, mapa)
+                self.assertIn(str(mapa[tipo]), codigos)
+
     def test_area_sin_destinatario_no_radica(self) -> None:
         clasificacion = Clasificacion(
             tipo=TipoPQRSF.QUEJA, area="area_que_no_existe", confianza=0.9
