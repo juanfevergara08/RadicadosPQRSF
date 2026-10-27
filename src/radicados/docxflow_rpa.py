@@ -72,6 +72,11 @@ def iniciar_sesion(pagina, config: Configuracion, intentos: int = 2) -> None:
         try:
             pagina.wait_for_selector(SELECTOR_AUTENTICADO, timeout=25000)
             pagina.wait_for_load_state("networkidle", timeout=20000)
+            # Ir al panel principal: la bandeja vive en un iframe y no
+            # siempre se carga sola desde /login
+            pagina.goto(f"{config.sgd_base_url}/docxflow", timeout=45000)
+            pagina.wait_for_timeout(2500)
+            esperar_frame_contenido(pagina)
             return
         except Exception:  # noqa: BLE001
             ultimo_texto = _texto_visible(pagina)
@@ -97,10 +102,34 @@ def guardar_sesion(contexto, ruta_sesion: Path) -> None:
 
 
 def frame_contenido(pagina):
-    """Devuelve el frame que contiene la aplicación (no el del visor)."""
-    candidatos = [
-        frame for frame in pagina.frames if frame.url and "/login" not in frame.url
-    ]
-    if candidatos:
-        return candidatos[-1]
+    """Devuelve el frame que contiene la aplicación (no el del visor).
+
+    Tras autenticar, el shell se sirve en /login, así que no basta con
+    descartar ese texto: hay que buscar los prefijos reales de la app.
+    """
+    for prefijo in ("/recepcion/", "/radicacion/", "/documento/", "/home"):
+        for frame in pagina.frames:
+            if prefijo in frame.url:
+                return frame
     return pagina.main_frame
+
+
+def esperar_frame_contenido(pagina, timeout_ms: int = 45000):
+    """Espera a que el iframe de la aplicación esté realmente cargado.
+
+    Lanza RuntimeError si no aparece: es preferible fallar claro a hacer clic
+    en el frame equivocado (el shell tiene enlaces como "Registrarse").
+    """
+    transcurrido = 0
+    while transcurrido < timeout_ms:
+        for frame in pagina.frames:
+            if "/recepcion/" in frame.url or "/radicar/" in frame.url:
+                return frame
+        pagina.wait_for_timeout(500)
+        transcurrido += 500
+
+    raise RuntimeError(
+        "No apareció el iframe de la aplicación en "
+        f"{timeout_ms / 1000:.0f}s. Frames vistos: "
+        + ", ".join(f.url[:60] for f in pagina.frames)
+    )
