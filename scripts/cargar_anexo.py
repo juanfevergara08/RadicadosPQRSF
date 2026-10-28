@@ -142,8 +142,17 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--confirmar", action="store_true")
     parser.add_argument("--radicado", default="CCPE26-7513")
-    parser.add_argument("--adjunto", default="var/adjuntos/RUT_Genera_SAS_ESP_19_ENE_2026.pdf")
+    parser.add_argument(
+        "--adjunto",
+        default="",
+        help="ruta del adjunto; si se omite se toma el PDF que contenga 'comprobante'",
+    )
     parser.add_argument("--cuerpo", default="var/adjuntos/cuerpo_correo.txt")
+    parser.add_argument(
+        "--despachar",
+        action="store_true",
+        help="pulsa Despachar al final y verifica el resultado (IRREVERSIBLE)",
+    )
     parser.add_argument(
         "--sin-asunto", action="store_true", help="no tocar el asunto del radicado"
     )
@@ -159,14 +168,23 @@ def main() -> int:
 
     config = Configuracion.cargar()
 
-    ruta_adjunto = RAIZ / argumentos.adjunto
-    if not ruta_adjunto.exists():
-        candidatos = sorted((RAIZ / "var" / "adjuntos").glob("*.pdf"))
-        if not candidatos:
-            print(f"[FALLO] no hay adjuntos en {RAIZ / 'var' / 'adjuntos'}")
-            print("Corre primero: python scripts/extraer_correo_prueba.py")
+    if argumentos.adjunto:
+        ruta_adjunto = RAIZ / argumentos.adjunto
+    else:
+        ruta_adjunto = None
+
+    if ruta_adjunto is None or not ruta_adjunto.exists():
+        carpeta = RAIZ / "var" / "adjuntos"
+        candidatos = sorted(carpeta.glob("*.pdf"))
+        preferidos = [c for c in candidatos if "comprobante" in c.name.lower()]
+        elegidos = preferidos or candidatos
+        if not elegidos:
+            print(f"[FALLO] no hay adjuntos en {carpeta}")
+            print("Corre primero: python scripts/extraer_correo_prueba.py "
+                  "--buscar \"CORREO DE PRUEBA\"")
             return 1
-        ruta_adjunto = candidatos[-1]
+        ruta_adjunto = elegidos[-1]
+
     print(f"Adjunto: {ruta_adjunto.name} ({ruta_adjunto.stat().st_size} bytes)")
 
     cuerpo = ""
@@ -375,18 +393,71 @@ def main() -> int:
         pagina.wait_for_timeout(6000)
         captura(pagina, marca, "08_borrador")
 
-        print("\n11. Comprobando Despachar (no se pulsa)")
-        try:
-            if marco.locator("#enviar-formulario").count():
-                print("   'Despachar' presente — NO se ha pulsado")
-        except Exception:  # noqa: BLE001
-            pass
+        if not argumentos.despachar:
+            print("\n11. Comprobando Despachar (no se pulsa)")
+            try:
+                if marco.locator("#enviar-formulario").count():
+                    print("   'Despachar' presente — NO se ha pulsado")
+            except Exception:  # noqa: BLE001
+                pass
+            captura(pagina, marca, "09_final")
+            navegador.close()
+            print(f"\nCapturas en {SALIDA}")
+            print("Revisa el radicado en DocxFlow. No se despachó.")
+            return 0
 
-        captura(pagina, marca, "09_final")
+        print("\n11. DESPACHANDO (irreversible)")
+        try:
+            marco.locator("#enviar-formulario").click(timeout=25000)
+            print("   Despachar pulsado")
+        except Exception as error:  # noqa: BLE001
+            print(f"   [FALLO] Despachar: {str(error).splitlines()[0][:120]}")
+            captura(pagina, marca, "error_despachar")
+            navegador.close()
+            return 1
+
+        pagina.wait_for_timeout(9000)
+        captura(pagina, marca, "10_despachado")
+
+        print("\n12. Verificando el resultado")
+        marco = esperar_frame_contenido(pagina)
+        try:
+            cuerpo_pantalla = marco.inner_text("body")
+            for clave in ("exit", "despach", "radicad", "error", "fall", "asignad"):
+                for linea in cuerpo_pantalla.splitlines():
+                    if clave in linea.lower() and linea.strip():
+                        print(f"   aviso: {linea.strip()[:110]}")
+                        break
+        except Exception:  # noqa: BLE001
+            print("   [aviso] no se pudo leer la pantalla")
+
+        print(f"   url tras despachar: {marco.url[:90]}")
+
+        # Comprobación real: ¿sigue pendiente en documentos de entrada?
+        try:
+            if marco.locator("#actviadorBusqueda").count():
+                marco.locator("#actviadorBusqueda").click()
+                pagina.wait_for_timeout(900)
+                marco.locator("#rad").fill(argumentos.radicado)
+                marco.locator("#btn_buscar").click()
+                pagina.wait_for_timeout(4000)
+                marco = esperar_frame_contenido(pagina)
+                sigue = argumentos.radicado in marco.inner_text("body")
+                if sigue:
+                    print(f"   [ATENCIÓN] {argumentos.radicado} AÚN aparece en la bandeja")
+                else:
+                    print(f"   OK: {argumentos.radicado} ya no está pendiente en la bandeja")
+                captura(pagina, marca, "11_verificacion_bandeja")
+            else:
+                print("   no hay buscador en esta pantalla para verificar")
+        except Exception as error:  # noqa: BLE001
+            print(f"   [aviso] verificación de bandeja: {str(error).splitlines()[0][:100]}")
+
+        captura(pagina, marca, "12_final")
         navegador.close()
 
     print(f"\nCapturas en {SALIDA}")
-    print("Revisa el radicado en DocxFlow. No se despachó.")
+    print("Revisa el resultado en DocxFlow.")
     return 0
 
 

@@ -27,6 +27,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--buscar", default="Solicitud factura electronica")
     parser.add_argument("--limite", type=int, default=10)
+    parser.add_argument(
+        "--preferir-adjunto",
+        default="comprobante",
+        help="fragmento del nombre del adjunto que se quiere",
+    )
     argumentos = parser.parse_args()
 
     config = Configuracion.cargar()
@@ -67,34 +72,46 @@ def main() -> int:
 
     SALIDA.mkdir(parents=True, exist_ok=True)
 
-    for indice, gmail_id in enumerate(ids[:3], start=1):
-        correo = gmail.obtener_correo(gmail_id, descargar_adjuntos=True)
-        print(f"\n[{indice}] {correo.asunto}")
-        print(f"    de: {correo.remitente_nombre} <{correo.remitente_email}>")
-        print(f"    cuerpo ({len(correo.cuerpo)} caracteres):")
-        print("    " + correo.cuerpo[:400].replace("\n", "\n    "))
+    elegido = None
+    for gmail_id in ids[:10]:
+        correo = gmail.obtener_correo(gmail_id, descargar_adjuntos=False)
+        nombres = [a.nombre for a in correo.adjuntos]
+        coincide = any(
+            argumentos.preferir_adjunto.lower() in n.lower() for n in nombres
+        )
+        print(f"  - {correo.asunto[:60]!r}")
+        print(f"    de: {correo.remitente_email} | adjuntos: {nombres}")
+        if coincide and elegido is None:
+            elegido = gmail_id
+            print("    ^ seleccionado")
+        elif not coincide and elegido is None:
+            pass
 
-        archivo_cuerpo = SALIDA / "cuerpo_correo.txt"
-        archivo_cuerpo.write_text(correo.cuerpo, encoding="utf-8")
-        print(f"    cuerpo guardado: {archivo_cuerpo}")
+    if elegido is None:
+        print(f"\nNo hay correo con un adjunto que contenga "
+              f"{argumentos.preferir_adjunto!r}.")
+        return 1
 
-        if not correo.adjuntos:
-            print("    (sin adjuntos)")
+    correo = gmail.obtener_correo(elegido, descargar_adjuntos=True)
+    print(f"\n=== CORREO ELEGIDO: {correo.asunto} ===")
+    print(f"de: {correo.remitente_nombre} <{correo.remitente_email}>")
+    print(f"cuerpo ({len(correo.cuerpo)} caracteres):")
+    print("  " + correo.cuerpo[:400].replace("\n", "\n  "))
+
+    archivo_cuerpo = SALIDA / "cuerpo_correo.txt"
+    archivo_cuerpo.write_text(correo.cuerpo, encoding="utf-8")
+    print(f"cuerpo guardado: {archivo_cuerpo}")
+
+    for adjunto in correo.adjuntos:
+        if not adjunto.contenido:
+            print(f"[aviso] {adjunto.nombre} sin contenido descargado")
             continue
-
-        for adjunto in correo.adjuntos:
-            if not adjunto.contenido:
-                print(f"    [aviso] {adjunto.nombre} sin contenido descargado")
-                continue
-            nombre_seguro = "".join(
-                c if c.isalnum() or c in "._-" else "_" for c in adjunto.nombre
-            )
-            destino = SALIDA / nombre_seguro
-            destino.write_bytes(adjunto.contenido)
-            print(f"    guardado: {destino} ({len(adjunto.contenido)} bytes)")
-
-        if argumentos.limite and indice == 1:
-            break
+        nombre_seguro = "".join(
+            c if c.isalnum() or c in "._-" else "_" for c in adjunto.nombre
+        )
+        destino = SALIDA / nombre_seguro
+        destino.write_bytes(adjunto.contenido)
+        print(f"guardado: {destino} ({len(adjunto.contenido)} bytes)")
 
     print(f"\nArchivos en {SALIDA}")
     return 0
