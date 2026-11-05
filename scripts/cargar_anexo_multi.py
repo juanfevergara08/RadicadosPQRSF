@@ -222,14 +222,26 @@ def main() -> int:
 
     config = Configuracion.cargar()
 
-    carpeta = RAIZ / "var" / "adjuntos"
-    pdfs = sorted(carpeta.glob("*.pdf"), key=lambda p: p.stat().st_mtime)
-    if not pdfs:
-        print("[FALLO] no hay PDF en var/adjuntos/")
-        print("Corre primero: python scripts/descargar_adjuntos_prueba.py")
-        return 1
+    if argumentos.adjuntos:
+        rutas = [
+            (RAIZ / a) if not Path(a).is_absolute() else Path(a)
+            for a in argumentos.adjuntos
+        ]
+        faltan = [r for r in rutas if not r.exists()]
+        if faltan:
+            print("[FALLO] no existen estos adjuntos:")
+            for r in faltan:
+                print(f"   {r}")
+            return 1
+    else:
+        carpeta = RAIZ / "var" / "adjuntos"
+        rutas = sorted(carpeta.glob("*.pdf"), key=lambda p: p.name)
+        if not rutas:
+            print("[FALLO] no hay PDF en var/adjuntos/")
+            print("Corre: python scripts/extraer_frisby.py --confirmar")
+            return 1
 
-    rutas = pdfs[:len(argumentos.tipos_documentales)] if argumentos.tipos_documentales else pdfs
+    print(f"Adjuntos seleccionados: {len(rutas)}")
 
     tipos = argumentos.tipos_documentales
     if len(tipos) < len(rutas):
@@ -328,14 +340,32 @@ def main() -> int:
             poner_metadatos(marco, pagina, prefijo, ruta.name, hoy)
         captura(pagina, marca, "07_metadatos")
 
-        print("\n9. Guardando el borrador (disquete)")
+        print("\n9. Paso 4 — tipo de trámite")
+        try:
+            marco.locator("#link_next").click(timeout=15000)
+            pagina.wait_for_timeout(2000)
+            marco.locator("#ventanilla_radicacion_formaEnvioRespuesta").select_option(
+                value="correo_electronico"
+            )
+            marco.locator("#ventanilla_radicacion_tramite").select_option(
+                value=argumentos.tramite
+            )
+            elegido = marco.locator("#ventanilla_radicacion_tramite").evaluate(
+                "el => el.options[el.selectedIndex].text"
+            )
+            print(f"   trámite: {elegido!r} (value={argumentos.tramite})")
+            captura(pagina, marca, "08_tramite")
+        except Exception as error:  # noqa: BLE001
+            print(f"   [AVISO] trámite: {str(error).splitlines()[0][:100]}")
+
+        print("\n10. Guardando el borrador (disquete)")
         try:
             marco.locator("#link_save a").first.click(timeout=15000)
         except Exception:  # noqa: BLE001
             marco.locator("#link_save").click(timeout=15000)
         pagina.wait_for_timeout(5000)
         print("   borrador guardado")
-        captura(pagina, marca, "08_borrador")
+        captura(pagina, marca, "09_borrador")
 
         if argumentos.despachar:
             print("\n10. DESPACHANDO (irreversible)")
